@@ -1,0 +1,70 @@
+# Environment variables
+.env
+*/.env
+
+# Backup files
+*Oldversion*
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/build
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.aider*
+/.vs/AiTranskipering/FileContentIndex/1bf16e1d-2008-4982-85ac-b5b7e76d162c.vsidx
+/.vs/AiTranskipering/FileContentIndex/24974c44-7878-4eac-ac8f-5b80643eb028.vsidx
+/.vs/AiTranskipering/FileContentIndex/62ae35f8-faaa-4502-bbd6-b00d2e491078.vsidx
+/.vs/AiTranskipering/FileContentIndex/75eacfe6-165c-4aa5-8784-5b86e9c4494b.vsidx
+/.vs/AiTranskipering/FileContentIndex/0f494493-acc2-43f2-b559-5cfc227295d4.vsidx
+/.vs/AiTranskipering/FileContentIndex/50d650f9-907b-4b00-8cea-c3cd0ed78e52.vsidx
+/.vs/AiTranskipering/FileContentIndex/fd00b9b2-b865-4ae1-b7ee-ecd6513d5fec.vsidx
+/.vs/AiTranskipering/FileContentIndex/399cd0ed-ce89-47ee-9b33-412a4ed4ba00.vsidx
+/.vs/slnx.sqlite
+/deployment/build/static/css/main.232e7f63.css
+/deployment/build/static/css/main.232e7f63.css.map
+*.css
+/deployment/build/static/css/main.669f2ead.css.map
+/deployment/build/static/css/main.7d744e08.css
+/deployment/build/static/css/main.7d744e08.css.map
+/deployment/build/static/js/main.01e43089.js
+/deployment/build/static/js/main.01e43089.js.LICENSE.txt
+/deployment/build/static/js/main.01e43089.js.map
+/deployment/build/static/js/main.28631b23.js
+/deployment/build/static/js/main.28631b23.js.LICENSE.txt
+/deployment/build/static/js/main.28631b23.js.map
+/deployment/build/static/js/main.45241bb2.js
+/deployment/build/static/js/main.45241bb2.js.LICENSE.txt
+/deployment/build/static/js/main.45241bb2.js.map
+/deployment/build/static/js/main.63e88872.js
+/deployment/build/static/js/main.63e88872.js.LICENSE.txt
+/deployment/build/static/js/main.63e88872.js.map
+/deployment/build/static/js/main.95872ceb.js
+/deployment/build/static/js/main.95872ceb.js.LICENSE.txt
+/deployment/build/static/js/main.95872ceb.js.map
+/deployment/build/static/js/main.c3a5eb2e.js
+/deployment/build/static/js/main.c3a5eb2e.js.LICENSE.txt
+/deployment/build/static/js/main.c3a5eb2e.js.map
+/deployment/build/static/js/main.d9c6e387.js
+/deployment/build/static/js/main.d9c6e387.js.LICENSE.txt
+/deployment/build/static/js/main.d9c6e387.js.map
+/deployment/build/static/js/main.f46f5451.js
+/deployment/build/static/js/main.f46f5451.js.LICENSE.txt
+/deployment/build/static/js/main.f46f5451.js.map
+/.vs/AiTranskipering/FileContentIndex/6a9a5c88-251a-43b4-adf4-d6497a90c71c.vsidx
+*.vsidx

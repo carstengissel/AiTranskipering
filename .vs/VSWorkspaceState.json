@@ -1,0 +1,19 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\deployment",
+    "\\deployment\\build",
+    "\\deployment\\build\\static",
+    "\\deployment\\build\\static\\js",
+    "\\src",
+    "\\src\\components",
+    "\\src\\components\\charts",
+    "\\src\\components\\ConversationSummary",
+    "\\src\\components\\ConversationSummary\\components",
+    "\\src\\components\\ConversationSummary\\utils",
+    "\\src\\components\\dashboard",
+    "\\src\\context"
+  ],
+  "SelectedNode": "\\src\\components\\ConversationSummary\\utils\\referatUtils.js",
+  "PreviewInSolutionExplorer": false
+}

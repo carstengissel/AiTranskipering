@@ -1,0 +1,30 @@
+e49be2b 2024-11-08 style: Increase title size from text-xl to text-2xl
+440b91f 2024-11-08 refactor: Remove last 3 KPIs from SamtalerStatusDashboard
+f8d1f66 2024-11-08 feat: Add new KPI cards for conversation metrics and feedback
+c0675fc 2024-11-08 refactor: Remove duplicate filter icon in dashboard
+57e9f1b 2024-11-08 feat: Add filter icon button to toggle FilterSidebar
+dfc35fe 2024-11-08 feat: Add interactive filter icon with toggle and animation
+1183795 2024-11-08 refactor: Remove duplicate state declarations in FilterSidebar component
+a6bbe9f 2024-11-08 feat: Add filter sidebar with toggle functionality to SamtalerStatusDashboard
+6b7c5b5 2024-11-08 feat: Add FilterSidebar component with conversation type and date range filters
+f952186 2024-11-08 fix: Resolve data loading and KPI display issues in SamtalerStatusDashboard
+a2b09e1 2024-11-08 fix: Prevent tooltip blinking by improving hover state handling
+41da6b6 2024-11-07 style: Remove pie chart label line and small text
+56aeb21 2024-11-07 feat: Add legend to pie chart with vertical layout and reduced chart size
+c311e74 2024-11-07 refactor: Update pie chart label with custom text element and styling
+5ea1d2e 2024-11-07 fix: Show full samtale type labels in pie chart
+9be8cd0 2024-11-07 refactor: Remove redundant title from tooltip and improve text styling
+9b5d7e1 2024-11-07 style: Adjust tooltip width and positioning for better readability
+a608b0b 2024-11-07 style: Enhance tooltip border visibility with blue-500 color
+e9b4d00 2024-11-07 style: Improve tooltip visibility and positioning with better styling
+fbf2922 2024-11-07 feat: Restore info icons and improve chart title layout in SamtalerStatusDashboard
+82356e9 2024-11-07 feat: Add info icon to ChartTooltip for improved interactivity
+0ec34e2 2024-11-07 refactor: Replace InfoIcon with ChartTooltip in SamtalerStatusDashboard
+220be30 2024-11-07 fix: Add missing useState import in ChartTooltip component
+e5bc70a 2024-11-07 feat: Add interactive chart tooltips with hover-based information display
+9313585 2024-11-07 refactor: Remove erroneous 'i' character from Line import
+690c668 2024-11-07 style: Align info icons to right side of graph headers using flex layout
+e32c7b4 2024-11-07 style: Adjust layout and positioning of header and info icon in statistics component
+4660f62 2024-11-07 style: Improve InfoIcon positioning and tooltip alignment
+c24c320 2024-11-07 feat: Move InfoIcons to top right of chart titles with improved layout
+43e56d9 2024-11-07 feat: Add information icons with tooltips to dashboard charts
