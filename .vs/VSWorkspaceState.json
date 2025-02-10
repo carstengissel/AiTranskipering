@@ -1,10 +1,7 @@
 {
   "ExpandedNodes": [
     "",
-    "\\deployment",
-    "\\deployment\\build",
-    "\\deployment\\build\\static",
-    "\\deployment\\build\\static\\js",
+    "\\backend",
     "\\src",
     "\\src\\components",
     "\\src\\components\\charts",
@@ -14,6 +11,6 @@
     "\\src\\components\\dashboard",
     "\\src\\context"
   ],
-  "SelectedNode": "\\src\\components\\ConversationSummary\\utils\\referatUtils.js",
+  "SelectedNode": "\\backend\\server.js",
   "PreviewInSolutionExplorer": false
 }

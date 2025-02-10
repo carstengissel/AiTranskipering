@@ -107,19 +107,8 @@ function formatDateForSQL(dateString) {
     }
 }
 
-// Helper function to get section filter condition
-function getSectionFilterCondition(section) {
-    const sectionPatterns = {
-        viHarAftalt: '%Vi har aftalt%',
-        viHarIDagTaltOm: '%Vi har i dag talt om%',
-        dinJobsogningIndtilNu: '%Din jobsøgning indtil nu%'
-    };
-
-    return sectionPatterns[section] || null;
-}
-
 // Helper function to build date filter condition
-function buildDateFilterCondition(date, type = 'exact', field = 'sr.reg_tid') {
+function buildDateFilterCondition(date, type = 'exact', field = 'reg_tid') {
     // If no date is provided, return null (no filter)
     if (!date) {
         console.log('No date provided for filter condition');
@@ -151,28 +140,28 @@ function buildDateFilterCondition(date, type = 'exact', field = 'sr.reg_tid') {
     return condition;
 }
 
-// Endpoint to get data from samind_referat
+// Endpoint to get data from samtale_transcription_statisics (tidligere samind_referat)
 app.get('/api/samind_referat', async (req, res) => {
     try {
         const { startDate, endDate, type } = req.query;
         console.log('Raw request query parameters:', req.query);
-        console.log('Fetching samind_referat data...', { startDate, endDate, type });
+        console.log('Fetching samtale data...', { startDate, endDate, type });
         const whereConditions = [];
         
         if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'sr.reg_tid');
+            const dateCondition = buildDateFilterCondition(startDate, 'start', 'reg_tid');
             if (dateCondition) {
                 whereConditions.push(dateCondition);
             }
         }
         if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'sr.reg_tid');
+            const dateCondition = buildDateFilterCondition(endDate, 'end', 'reg_tid');
             if (dateCondition) {
                 whereConditions.push(dateCondition);
             }
         }
         if (type && type !== 'all') {
-            whereConditions.push(`si.samtyp_type = '${type}'`);
+            whereConditions.push(`samtyp_type = '${type}'`);
         }
 
         const whereClause = whereConditions.length > 0 
@@ -187,66 +176,58 @@ app.get('/api/samind_referat', async (req, res) => {
         });
 
         const query = `
-            SELECT DISTINCT
-                sr.*,
-                sar.referat as aiReferat,
-                sar.feedback,
-                sar.feedback_beskrivelse,
-                sar.regenerer_dato,
-                si.samtyp_type,
-                st.ledetekst,
-                m.cpr_nr,
-                DATEDIFF(MINUTE, si.samtale_dato, sar.reg_tid) as tid_fra_transskription_til_ai_referat,
-                
-                DATEDIFF(MINUTE, si.samtale_dato, sar.reg_tid) as tid_til_ai_referat,
-                DATEDIFF(MINUTE, sar.reg_tid, sr.reg_tid) as tid_til_godkendelse
-            FROM samind_referat sr WITH (NOLOCK)
-            INNER JOIN samtale_indkaldelse si WITH (NOLOCK)
-                ON sr.medl_ident = si.medl_ident 
-                AND sr.samind_lbnr = si.lbnr
-            INNER JOIN samind_ai_referat sar WITH (NOLOCK)
-                ON sr.medl_ident = sar.medl_ident 
-                AND sr.samind_lbnr = sar.samind_lbnr
-            INNER JOIN samtaletype st WITH (NOLOCK)
-                ON si.samtyp_type = st.type
-            INNER JOIN medlem m WITH (NOLOCK)
-                ON sr.medl_ident = m.ident
+            SELECT 
+                referat,
+                ai_referat as aiReferat,
+                CASE feedback
+                    WHEN 'j' THEN 1
+                    WHEN 'n' THEN -1
+                ELSE NULL
+                END as feedback,
+                samtyp_type,
+                regenerated,
+                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
+                DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
+                reg_init,
+                reg_tid,
+                reg_vers_nr
+            FROM samtale_transcription_statisics WITH (NOLOCK)
             ${whereClause}
-            ORDER BY sr.reg_tid DESC`;
+            ORDER BY reg_tid DESC`;
 
         console.log('Executing query:', query);
         const request = new sql.Request();
         const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records from samind_referat`);
+        console.log(`Fetched ${result.recordset.length} records from samtale_transcription_statisics`);
         res.json(result.recordset);
     } catch (err) {
-        console.error('Error fetching data from samind_referat:', err);
+        console.error('Error fetching data:', err);
         res.status(500).json({ error: 'An error occurred while fetching data' });
     }
 });
 
-// Endpoint to get data from samind_ai_referat
+// Endpoint to get AI referat data (tidligere samind_ai_referat)
 app.get('/api/samind_ai_referat', async (req, res) => {
     try {
         const { startDate, endDate, type } = req.query;
         console.log('Raw request query parameters:', req.query);
-        console.log('Fetching samind_ai_referat data...', { startDate, endDate, type });
+        console.log('Fetching AI referat data...', { startDate, endDate, type });
         const whereConditions = [];
         
         if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'sar.reg_tid');
+            const dateCondition = buildDateFilterCondition(startDate, 'start', 'ai_referat_recieved_at');
             if (dateCondition) {
                 whereConditions.push(dateCondition);
             }
         }
         if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'sar.reg_tid');
+            const dateCondition = buildDateFilterCondition(endDate, 'end', 'ai_referat_recieved_at');
             if (dateCondition) {
                 whereConditions.push(dateCondition);
             }
         }
         if (type && type !== 'all') {
-            whereConditions.push(`si.samtyp_type = '${type}'`);
+            whereConditions.push(`samtyp_type = '${type}'`);
         }
 
         const whereClause = whereConditions.length > 0 
@@ -255,34 +236,30 @@ app.get('/api/samind_ai_referat', async (req, res) => {
 
         const query = `
             SELECT 
-                sar.*,
-                si.samtyp_type,
-                st.ledetekst,
-                m.cpr_nr,
-                DATEDIFF(MINUTE, si.samtale_dato, sar.reg_tid) as tid_fra_transskription_til_ai_referat,
-                DATEDIFF(MINUTE, si.samtale_dato, sar.reg_tid) as tid_til_ai_referat,
-                DATEDIFF(MINUTE, sar.reg_tid, sr.reg_tid) as tid_til_godkendelse
-            FROM samind_referat sr WITH (NOLOCK)
-            INNER JOIN samind_ai_referat sar WITH (NOLOCK)
-                ON sr.medl_ident = sar.medl_ident 
-                AND sr.samind_lbnr = sar.samind_lbnr
-            INNER JOIN samtale_indkaldelse si WITH (NOLOCK)
-                ON sr.medl_ident = si.medl_ident 
-                AND sr.samind_lbnr = si.lbnr
-            INNER JOIN samtaletype st WITH (NOLOCK)
-                ON si.samtyp_type = st.type
-            INNER JOIN medlem m WITH (NOLOCK)
-                ON sar.medl_ident = m.ident
+                ai_referat,
+                samtyp_type,
+                CASE feedback
+                    WHEN 'j' THEN 1
+                    WHEN 'n' THEN -1
+                ELSE NULL
+                END as feedback,
+                regenerated,
+                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
+                DATEDIFF(MINUTE, ai_referat_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
+                reg_init,
+                reg_tid,
+                reg_vers_nr
+            FROM samtale_transcription_statisics WITH (NOLOCK)
             ${whereClause}
-            ORDER BY sar.reg_tid DESC`;
+            ORDER BY ai_referat_recieved_at DESC`;
 
         console.log('Executing query:', query);
         const request = new sql.Request();
         const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records from samind_ai_referat`);
+        console.log(`Fetched ${result.recordset.length} records`);
         res.json(result.recordset);
     } catch (err) {
-        console.error('Error fetching data from samind_ai_referat:', err);
+        console.error('Error fetching AI referat data:', err);
         res.status(500).json({ error: 'An error occurred while fetching data' });
     }
 });
@@ -293,15 +270,9 @@ app.get('/api/samtaletyper', async (req, res) => {
         console.log('Fetching samtaletyper...');
         const result = await sql.query`
             SELECT DISTINCT 
-                si.samtyp_type,
-                st.ledetekst
-            FROM samind_ai_referat sar
-            INNER JOIN samtale_indkaldelse si 
-                ON sar.medl_ident = si.medl_ident 
-                AND sar.samind_lbnr = si.lbnr
-            INNER JOIN samtaletype st 
-                ON si.samtyp_type = st.type
-            ORDER BY st.ledetekst
+                samtyp_type
+            FROM samtale_transcription_statisics WITH (NOLOCK)
+            ORDER BY samtyp_type
         `;
         console.log(`Fetched ${result.recordset.length} distinct conversation types`);
         res.json(result.recordset);

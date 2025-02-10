@@ -15,6 +15,14 @@ const TimeStatisticsChart = memo(({ data }) => {
     return groupDataByTimeScale(data, timeScale, 'date');
   }, [data, timeScale]);
 
+  // Calculate max value for YAxis domain
+  const maxValue = useMemo(() => {
+    if (!groupedData || groupedData.length === 0) return 100;
+    const maxGodkendelse = Math.max(...groupedData.map(item => Number(item.tidTilGodkendelse) || 0));
+    const maxAIReferat = Math.max(...groupedData.map(item => Number(item.tidTilAIReferat) || 0));
+    return Math.max(maxGodkendelse, maxAIReferat, 100); // At least 100 for better visibility
+  }, [groupedData]);
+
   // If no data, return a placeholder or message
   if (!data || data.length === 0) {
     return (
@@ -24,21 +32,8 @@ const TimeStatisticsChart = memo(({ data }) => {
     );
   }
 
-  // Calculate average times and add small offset for log scale
-  const processedData = groupedData.map(item => {
-    const tidTilGodkendelse = Math.max(1, item.tidTilGodkendelse || 0);
-    const tidTilAIReferat = Math.max(1, item.tidTilAIReferat || 0);
-
-    return {
-      ...item,
-      tidTilGodkendelse,
-      tidTilAIReferat
-    };
-  });
-
   const tooltipFormatter = (value) => {
-    if (value === 0) return '0 min';
-    if (value === 1) return '< 1 min';
+    if (!value || value === 0) return '0 min';
     return `${Math.round(value)} min`;
   };
 
@@ -56,7 +51,7 @@ const TimeStatisticsChart = memo(({ data }) => {
       <div className="w-full h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={processedData}
+            data={groupedData}
             margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" />
@@ -69,11 +64,11 @@ const TimeStatisticsChart = memo(({ data }) => {
               tick={{ fontSize: 12 }}
             />
             <YAxis 
-              type="number"
-              domain={[0, 'auto']}
+              domain={[0, maxValue]}
               label={{ value: 'Minutter', angle: -90, position: 'insideLeft', fontSize: 11, offset: 10 }}
               tick={{ fontSize: 10 }}
               tickFormatter={tooltipFormatter}
+              allowDecimals={false}
             />
             <Tooltip formatter={tooltipFormatter} />
             <Legend wrapperStyle={{ fontSize: '10px' }} />
@@ -84,6 +79,7 @@ const TimeStatisticsChart = memo(({ data }) => {
               name="Tid til godkendelse"
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
             <Line 
               type="monotone"
@@ -92,6 +88,7 @@ const TimeStatisticsChart = memo(({ data }) => {
               name="Tid fra transskription til AI-referat"
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

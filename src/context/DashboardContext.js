@@ -93,15 +93,40 @@ export const DashboardProvider = ({ children }) => {
       console.log('Fetched data:', { referatData, aiReferatData });
 
       // Transform the data
-      const transformedData = transformReferatData(referatData, aiReferatData);
-      const newKpis = calculateKPIs(transformedData, samtaletyper);
+      const { data: transformedData, kpis: newKpis } = transformReferatData(referatData, aiReferatData);
       const newCount = transformedData.reduce((sum, item) => sum + (item.count || 0), 0);
+
+      // Calculate feedback statistics including NULL values in total
+      const totalFeedback = referatData.length; // Include all records
+      const totalThumbsUp = referatData.filter(item => item.feedback === 1).length;
+      const totalThumbsDown = referatData.filter(item => item.feedback === -1).length;
 
       // Update state with transition
       updateStateWithTransition({
         statistics: transformedData,
-        kpis: newKpis,
+        kpis: {
+          ...newKpis,
+          avgThumbsUpRate: totalFeedback > 0 
+            ? ((totalThumbsUp / totalFeedback) * 100).toFixed(2)
+            : "0.00",
+          avgThumbsDownRate: totalFeedback > 0
+            ? ((totalThumbsDown / totalFeedback) * 100).toFixed(2)
+            : "0.00",
+          conversationTypeCounts: transformedData.reduce((acc, item) => {
+            const type = item.ledetekst || "2. og 3. jobsamtale";
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {})
+        },
         count: newCount
+      });
+
+      console.log('Feedback statistics:', {
+        totalFeedback,
+        totalThumbsUp,
+        totalThumbsDown,
+        avgThumbsUpRate: totalFeedback > 0 ? ((totalThumbsUp / totalFeedback) * 100).toFixed(2) : "0.00",
+        avgThumbsDownRate: totalFeedback > 0 ? ((totalThumbsDown / totalFeedback) * 100).toFixed(2) : "0.00"
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

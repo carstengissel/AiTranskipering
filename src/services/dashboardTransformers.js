@@ -105,24 +105,40 @@ export const calculateKPIs = (data, samtaletyper) => {
     };
   }
 
-  const totalThumbsUp = data.reduce((sum, stat) => sum + (stat.thumbsUp || 0), 0);
-  const totalThumbsDown = data.reduce((sum, stat) => sum + (stat.thumbsDown || 0), 0);
+  // Calculate feedback statistics including NULL values in total
+  const totalRecords = data.length; // Include all records
+  const totalThumbsUp = data.filter(stat => stat.feedback === 1).length;
+  const totalThumbsDown = data.filter(stat => stat.feedback === -1).length;
   
-  // Calculate total number of conversations
-  const totalConversations = data.reduce((sum, stat) => sum + (stat.count || 0), 0);
-  
-  // Calculate thumbs up rate against total conversations
-  const avgThumbsUpRate = totalConversations === 0 ? 
+  // Calculate rates based on total records (including NULL)
+  const avgThumbsUpRate = totalRecords === 0 ? 
     "0.00" : 
-    ((totalThumbsUp / totalConversations * 100) || 0).toFixed(2);
+    ((totalThumbsUp / totalRecords * 100)).toFixed(2);
 
-  // Calculate thumbs down rate against total conversations
-  const avgThumbsDownRate = totalConversations === 0 ?
+  const avgThumbsDownRate = totalRecords === 0 ?
     "0.00" :
-    ((totalThumbsDown / totalConversations * 100) || 0).toFixed(2);
+    ((totalThumbsDown / totalRecords * 100)).toFixed(2);
 
-  const avgTimeToAIReport = (data.reduce((sum, stat) => sum + (stat.tidTilAIReferat || 0), 0) / data.length).toFixed(2);
-  const avgTimeToApproval = (data.reduce((sum, stat) => sum + (stat.tidTilGodkendelse || 0), 0) / data.length).toFixed(2);
+  // Calculate time statistics with proper validation
+  const validTimeToAIReports = data.filter(stat => 
+    typeof stat.tidTilAIReferat === 'number' && 
+    !isNaN(stat.tidTilAIReferat) && 
+    stat.tidTilAIReferat > 0
+  );
+  
+  const validTimeToApproval = data.filter(stat => 
+    typeof stat.tidTilGodkendelse === 'number' && 
+    !isNaN(stat.tidTilGodkendelse) && 
+    stat.tidTilGodkendelse > 0
+  );
+
+  const avgTimeToAIReport = validTimeToAIReports.length === 0 ? 
+    "0.00" : 
+    (validTimeToAIReports.reduce((sum, stat) => sum + stat.tidTilAIReferat, 0) / validTimeToAIReports.length).toFixed(2);
+
+  const avgTimeToApproval = validTimeToApproval.length === 0 ?
+    "0.00" :
+    (validTimeToApproval.reduce((sum, stat) => sum + stat.tidTilGodkendelse, 0) / validTimeToApproval.length).toFixed(2);
   
   const totalSections = data.reduce((sum, stat) => sum + ((stat.count || 0) * 3), 0);
   const totalUnchangedSections = data.reduce((sum, stat) => {
@@ -193,21 +209,40 @@ const processReferat = (referat, aiReferat) => {
     // Calculate unchanged sections based on sections with zero changes
     const unchangedSections = Object.values(sectionChanges).filter(changes => changes === 0).length;
 
-    // Convert feedback to number and ensure it's a valid value (-1, 0, or 1)
-    const feedbackValue = Number(aiReferat.feedback);
-    console.log('Feedback value after conversion:', {
+    // Process feedback value from database
+    const feedbackValue = aiReferat.feedback;
+    console.log('Processing feedback:', {
       original: aiReferat.feedback,
-      converted: feedbackValue,
       type: typeof feedbackValue,
-      isNaN: isNaN(feedbackValue),
-      isNegative: feedbackValue === -1,
-      isPositive: feedbackValue === 1
+      value: feedbackValue
     });
 
-    // Ensure feedback is a valid value (-1, 0, or 1)
-    const normalizedFeedback = isNaN(feedbackValue) ? 0 : 
-                             feedbackValue === -1 ? -1 : 
-                             feedbackValue === 1 ? 1 : 0;
+    // The feedback value should already be 1, -1, or null from the SQL CASE statement
+    const normalizedFeedback = typeof feedbackValue === 'number' && (feedbackValue === 1 || feedbackValue === -1)
+      ? feedbackValue
+      : 0;
+
+    // Process time values - they come as minutes from DATEDIFF in SQL
+    const tidTilAIReferat = typeof referat.tid_fra_transskription_til_ai_referat === 'number' && 
+                           !isNaN(referat.tid_fra_transskription_til_ai_referat)
+                           ? Math.max(0, Math.min(referat.tid_fra_transskription_til_ai_referat, 1440)) // Cap at 24 hours
+                           : null;
+
+    const tidTilGodkendelse = typeof referat.tid_til_godkendelse === 'number' && 
+                             !isNaN(referat.tid_til_godkendelse)
+                             ? Math.max(0, Math.min(referat.tid_til_godkendelse, 1440)) // Cap at 24 hours
+                             : null;
+
+    console.log('Processing time values:', {
+      original: {
+        tidTilAIReferat: referat.tid_fra_transskription_til_ai_referat,
+        tidTilGodkendelse: referat.tid_til_godkendelse
+      },
+      normalized: {
+        tidTilAIReferat,
+        tidTilGodkendelse
+      }
+    });
 
     return {
       id: `${referat.medl_ident}-${referat.samind_lbnr}`,
@@ -222,8 +257,8 @@ const processReferat = (referat, aiReferat) => {
       ledetekst: referat.ledetekst,
       ...sectionChanges,
       uaendredeSektioner: unchangedSections,
-      tidTilGodkendelse: referat.tid_til_godkendelse || null,
-      tidTilAIReferat: referat.tid_til_ai_referat || null,
+      tidTilGodkendelse: tidTilGodkendelse,
+      tidTilAIReferat: tidTilAIReferat,
       feedback: normalizedFeedback,
       thumbsUp: normalizedFeedback === 1 ? 1 : 0,
       thumbsDown: normalizedFeedback === -1 ? 1 : 0,
@@ -273,6 +308,18 @@ export const transformReferatDataForCharts = (referatData, aiReferatData) => {
     })
     .filter(Boolean);
 
+  // First, log the processed referats to check the data
+  console.log('Processed referats before grouping:', 
+    processedReferats.map(item => ({
+      date: item.date,
+      feedback: item.feedback,
+      thumbsUp: item.thumbsUp,
+      thumbsDown: item.thumbsDown,
+      tidTilAIReferat: item.tidTilAIReferat,
+      tidTilGodkendelse: item.tidTilGodkendelse
+    }))
+  );
+
   const groupedByDate = processedReferats.reduce((acc, item) => {
     if (!acc[item.date]) {
       acc[item.date] = {
@@ -283,6 +330,7 @@ export const transformReferatDataForCharts = (referatData, aiReferatData) => {
         uaendredeSektioner: 0,
         thumbsUp: 0,
         thumbsDown: 0,
+        feedback: [],
         tidTilGodkendelse: [],  
         tidTilAIReferat: [],   
         count: 0,
@@ -291,17 +339,29 @@ export const transformReferatDataForCharts = (referatData, aiReferatData) => {
       };
     }
     
-    acc[item.date].viHarAftalt += item.viHarAftalt;
-    acc[item.date].viHarIDagTaltOm += item.viHarIDagTaltOm;
-    acc[item.date].dinJobsogningIndtilNu += item.dinJobsogningIndtilNu;
-    acc[item.date].uaendredeSektioner += item.uaendredeSektioner;
-    acc[item.date].thumbsUp += item.thumbsUp;
-    acc[item.date].thumbsDown += item.thumbsDown;
+    // Update section changes
+    acc[item.date].viHarAftalt += item.viHarAftalt || 0;
+    acc[item.date].viHarIDagTaltOm += item.viHarIDagTaltOm || 0;
+    acc[item.date].dinJobsogningIndtilNu += item.dinJobsogningIndtilNu || 0;
+    acc[item.date].uaendredeSektioner += item.uaendredeSektioner || 0;
     
-    if (item.tidTilGodkendelse) {
+    // Track feedback values
+    if (item.feedback === 1 || item.feedback === -1) {
+      acc[item.date].feedback.push(item.feedback);
+      if (item.feedback === 1) acc[item.date].thumbsUp++;
+      if (item.feedback === -1) acc[item.date].thumbsDown++;
+    }
+    
+    // Track time values only if they are valid numbers
+    if (typeof item.tidTilGodkendelse === 'number' && 
+        !isNaN(item.tidTilGodkendelse) && 
+        item.tidTilGodkendelse > 0) {
       acc[item.date].tidTilGodkendelse.push(item.tidTilGodkendelse);
     }
-    if (item.tidTilAIReferat) {
+    
+    if (typeof item.tidTilAIReferat === 'number' && 
+        !isNaN(item.tidTilAIReferat) && 
+        item.tidTilAIReferat > 0) {
       acc[item.date].tidTilAIReferat.push(item.tidTilAIReferat);
     }
     
@@ -316,18 +376,88 @@ export const transformReferatDataForCharts = (referatData, aiReferatData) => {
     return acc;
   }, {});
 
-  return Object.values(groupedByDate)
-    .map(({ conversations, conversationTypes, ...rest }) => ({
-      ...rest,
-      tidTilGodkendelse: rest.tidTilGodkendelse.length 
-        ? rest.tidTilGodkendelse.reduce((a, b) => a + b, 0) / rest.tidTilGodkendelse.length 
-        : 0,
-      tidTilAIReferat: rest.tidTilAIReferat.length 
-        ? rest.tidTilAIReferat.reduce((a, b) => a + b, 0) / rest.tidTilAIReferat.length 
-        : 0,
-      conversationTypes: Array.from(conversationTypes || [])
-    }))
+  // Log the grouped data before final transformation
+  console.log('Grouped data before final transform:', groupedByDate);
+
+  // Calculate feedback statistics including NULL values in total
+  const totalRecords = processedReferats.length; // Include all records
+  const totalThumbsUp = processedReferats.filter(item => item.feedback === 1).length;
+  const totalThumbsDown = processedReferats.filter(item => item.feedback === -1).length;
+
+  // Calculate time statistics from processed referats directly
+  const validTimeToAIReport = processedReferats
+    .filter(item => typeof item.tidTilAIReferat === 'number' && 
+                    !isNaN(item.tidTilAIReferat) && 
+                    item.tidTilAIReferat > 0);
+
+  const validTimeToApproval = processedReferats
+    .filter(item => typeof item.tidTilGodkendelse === 'number' && 
+                    !isNaN(item.tidTilGodkendelse) && 
+                    item.tidTilGodkendelse > 0);
+
+  const avgTimeToAIReport = validTimeToAIReport.length > 0
+    ? (validTimeToAIReport.reduce((sum, item) => sum + item.tidTilAIReferat, 0) / validTimeToAIReport.length).toFixed(2)
+    : "0.00";
+
+  const avgTimeToApproval = validTimeToApproval.length > 0
+    ? (validTimeToApproval.reduce((sum, item) => sum + item.tidTilGodkendelse, 0) / validTimeToApproval.length).toFixed(2)
+    : "0.00";
+
+  console.log('Feedback statistics:', {
+    totalRecords,
+    totalThumbsUp,
+    totalThumbsDown,
+    avgThumbsUpRate: totalRecords > 0 ? ((totalThumbsUp / totalRecords) * 100).toFixed(2) : "0.00",
+    avgThumbsDownRate: totalRecords > 0 ? ((totalThumbsDown / totalRecords) * 100).toFixed(2) : "0.00"
+  });
+
+  console.log('Time statistics:', {
+    validTimeToAIReport: validTimeToAIReport.length,
+    validTimeToApproval: validTimeToApproval.length,
+    avgTimeToAIReport,
+    avgTimeToApproval
+  });
+
+  // Transform grouped data
+  const transformedData = Object.values(groupedByDate)
+    .map(({ conversations, conversationTypes, feedback, tidTilGodkendelse, tidTilAIReferat, ...rest }) => {
+      // Calculate average time values for each period
+      const avgTidTilGodkendelse = tidTilGodkendelse.length > 0
+        ? tidTilGodkendelse.reduce((a, b) => a + b, 0) / tidTilGodkendelse.length
+        : 0;
+
+      const avgTidTilAIReferat = tidTilAIReferat.length > 0
+        ? tidTilAIReferat.reduce((a, b) => a + b, 0) / tidTilAIReferat.length
+        : 0;
+
+      return {
+        ...rest,
+        feedback: feedback.length,
+        thumbsUp: feedback.filter(f => f === 1).length,
+        thumbsDown: feedback.filter(f => f === -1).length,
+        tidTilGodkendelse: avgTidTilGodkendelse,
+        tidTilAIReferat: avgTidTilAIReferat,
+        conversationTypes: Array.from(conversationTypes || [])
+      };
+    })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Return both the transformed data and KPI values
+  return {
+    data: transformedData,
+    kpis: {
+      avgThumbsUpRate: totalRecords > 0 
+        ? ((totalThumbsUp / totalRecords) * 100).toFixed(2)
+        : "0.00",
+      avgThumbsDownRate: totalRecords > 0
+        ? ((totalThumbsDown / totalRecords) * 100).toFixed(2)
+        : "0.00",
+      avgTimeToAIReport: avgTimeToAIReport,
+      avgTimeToApproval: avgTimeToApproval,
+      unchangedSectionsPercentage: (processedReferats.reduce((sum, item) => sum + item.uaendredeSektioner, 0) / (processedReferats.length * 3) * 100).toFixed(2),
+      mostFrequentType: "2. og 3. jobsamtale"
+    }
+  };
 };
 
 export const transformReferatData = transformReferatDataForCharts;
