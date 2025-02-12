@@ -3,16 +3,8 @@
   "WorkspaceRootPath": "E:\\WorkNy\\AiTranskipering\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\src\\services\\dashboardAPI.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\services\\dashboardAPI.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\deployment\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:deployment\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\database_structure_explanation.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:database_structure_explanation.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
@@ -55,6 +47,10 @@
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\charts\\ConversationTypesChart.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\deployment\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:deployment\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|E:\\WorkNy\\AiTranskipering\\src\\config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\config.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
@@ -74,7 +70,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
@@ -94,124 +90,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "database_structure_explanation.md",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\database_structure_explanation.md",
-              "RelativeDocumentMoniker": "database_structure_explanation.md",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\database_structure_explanation.md",
-              "RelativeToolTip": "database_structure_explanation.md",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAABRAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
-              "WhenOpened": "2025-02-04T13:42:20.84Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "dashboardAPI.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\services\\dashboardAPI.js",
-              "RelativeDocumentMoniker": "src\\services\\dashboardAPI.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\services\\dashboardAPI.js",
-              "RelativeToolTip": "src\\services\\dashboardAPI.js",
-              "ViewState": "AgIAAEoAAAAAAAAAAAAowFoAAAArAAAAAAAAAA==",
+              "Title": "server.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\backend\\server.js",
+              "RelativeDocumentMoniker": "backend\\server.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\backend\\server.js",
+              "RelativeToolTip": "backend\\server.js",
+              "ViewState": "AgIAAOwAAAAAAAAAAAAAAAkAAAAlAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2025-02-04T13:40:54.018Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "package.json",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\package.json",
-              "RelativeDocumentMoniker": "package.json",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\package.json",
-              "RelativeToolTip": "package.json",
-              "ViewState": "AgIAAAsAAAAAAAAAAAAswB0AAAAcAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2024-12-02T10:40:45.101Z",
+              "WhenOpened": "2025-02-04T14:47:43.929Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 3,
-              "Title": "ChangesStatisticsChart.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
-              "RelativeDocumentMoniker": "src\\components\\charts\\ChangesStatisticsChart.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
-              "RelativeToolTip": "src\\components\\charts\\ChangesStatisticsChart.js",
-              "ViewState": "AgIAAFoAAAAAAAAAAAAAAF8AAAAaAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-04T12:14:51.225Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "SectionChangesChart.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\SectionChangesChart.js",
-              "RelativeDocumentMoniker": "src\\components\\charts\\SectionChangesChart.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\SectionChangesChart.js",
-              "RelativeToolTip": "src\\components\\charts\\SectionChangesChart.js",
-              "ViewState": "AgIAAD8AAAAAAAAAAIBJwEoAAAAUAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2025-01-24T10:24:23.235Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
-              "Title": "DashboardContext.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\context\\DashboardContext.js",
-              "RelativeDocumentMoniker": "src\\context\\DashboardContext.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\context\\DashboardContext.js",
-              "RelativeToolTip": "src\\context\\DashboardContext.js",
-              "ViewState": "AgIAAGIAAAAAAAAAACBjwGsAAAAqAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-04T12:15:14.859Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "server.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\deployment\\server.js",
-              "RelativeDocumentMoniker": "deployment\\server.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\deployment\\server.js",
-              "RelativeToolTip": "deployment\\server.js",
-              "ViewState": "AgIAAAYBAAAAAAAAAAAAABQBAAAwAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-03T15:46:37.13Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "ReportDetail.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\ConversationSummary\\components\\ReportDetail.js",
-              "RelativeDocumentMoniker": "src\\components\\ConversationSummary\\components\\ReportDetail.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\ConversationSummary\\components\\ReportDetail.js",
-              "RelativeToolTip": "src\\components\\ConversationSummary\\components\\ReportDetail.js",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAQAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-16T10:06:20.263Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "DashboardHeader.js",
-              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\dashboard\\DashboardHeader.js",
-              "RelativeDocumentMoniker": "src\\components\\dashboard\\DashboardHeader.js",
-              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\dashboard\\DashboardHeader.js",
-              "RelativeToolTip": "src\\components\\dashboard\\DashboardHeader.js",
-              "ViewState": "AgIAACsAAAAAAAAAACBjwDkAAAAeAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-04T12:15:16.729Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
               "Title": "main.939b9f41.js.map",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\deployment\\build\\static\\js\\main.939b9f41.js.map",
               "RelativeDocumentMoniker": "deployment\\build\\static\\js\\main.939b9f41.js.map",
@@ -223,7 +115,79 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 5,
+              "Title": "ReportDetail.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\ConversationSummary\\components\\ReportDetail.js",
+              "RelativeDocumentMoniker": "src\\components\\ConversationSummary\\components\\ReportDetail.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\ConversationSummary\\components\\ReportDetail.js",
+              "RelativeToolTip": "src\\components\\ConversationSummary\\components\\ReportDetail.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2024-12-16T10:06:20.263Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "package.json",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\package.json",
+              "RelativeDocumentMoniker": "package.json",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\package.json",
+              "RelativeToolTip": "package.json",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAswB0AAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2024-12-02T10:40:45.101Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ChangesStatisticsChart.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
+              "RelativeDocumentMoniker": "src\\components\\charts\\ChangesStatisticsChart.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
+              "RelativeToolTip": "src\\components\\charts\\ChangesStatisticsChart.js",
+              "ViewState": "AgIAAFoAAAAAAAAAAAAAAFoAAAAbAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2024-12-04T12:14:51.225Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "SectionChangesChart.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\SectionChangesChart.js",
+              "RelativeDocumentMoniker": "src\\components\\charts\\SectionChangesChart.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\SectionChangesChart.js",
+              "RelativeToolTip": "src\\components\\charts\\SectionChangesChart.js",
+              "ViewState": "AgIAAEIAAAAAAAAAAAAAAEoAAAAUAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-01-24T10:24:23.235Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "DashboardContext.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\context\\DashboardContext.js",
+              "RelativeDocumentMoniker": "src\\context\\DashboardContext.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\context\\DashboardContext.js",
+              "RelativeToolTip": "src\\context\\DashboardContext.js",
+              "ViewState": "AgIAAGUAAAAAAAAAAIBZwGsAAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2024-12-04T12:15:14.859Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "DashboardHeader.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\dashboard\\DashboardHeader.js",
+              "RelativeDocumentMoniker": "src\\components\\dashboard\\DashboardHeader.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\dashboard\\DashboardHeader.js",
+              "RelativeToolTip": "src\\components\\dashboard\\DashboardHeader.js",
+              "ViewState": "AgIAAC4AAAAAAAAAAIBZwDkAAAAeAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2024-12-04T12:15:16.729Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
               "Title": "ConversationTypesChart.js",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ConversationTypesChart.js",
               "RelativeDocumentMoniker": "src\\components\\charts\\ConversationTypesChart.js",
@@ -231,25 +195,23 @@
               "RelativeToolTip": "src\\components\\charts\\ConversationTypesChart.js",
               "ViewState": "AgIAABcAAAAAAAAAAIAwwCgAAAAGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-04T12:15:05.783Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-12-04T12:15:05.783Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 7,
               "Title": "FeedbackChart.js",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\FeedbackChart.js",
               "RelativeDocumentMoniker": "src\\components\\charts\\FeedbackChart.js",
               "ToolTip": "E:\\WorkNy\\AiTranskipering\\src\\components\\charts\\FeedbackChart.js",
               "RelativeToolTip": "src\\components\\charts\\FeedbackChart.js",
-              "ViewState": "AgIAACEAAAAAAAAAACBjwAcAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAACQAAAAAAAAAAIBZwAcAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-16T09:58:16.134Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-12-16T09:58:16.134Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 6,
               "Title": "ReportList.js",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\components\\ConversationSummary\\components\\ReportList.js",
               "RelativeDocumentMoniker": "src\\components\\ConversationSummary\\components\\ReportList.js",
@@ -257,12 +219,11 @@
               "RelativeToolTip": "src\\components\\ConversationSummary\\components\\ReportList.js",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAUAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-16T10:03:05.526Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-12-16T10:03:05.526Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 12,
               "Title": "config.js",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\src\\config.js",
               "RelativeDocumentMoniker": "src\\config.js",
@@ -270,12 +231,23 @@
               "RelativeToolTip": "src\\config.js",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAEAAABCAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-03T15:48:35.971Z",
-              "EditorCaption": ""
+              "WhenOpened": "2024-12-03T15:48:35.971Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 14,
+              "DocumentIndex": 11,
+              "Title": "server.js",
+              "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\deployment\\server.js",
+              "RelativeDocumentMoniker": "deployment\\server.js",
+              "ToolTip": "E:\\WorkNy\\AiTranskipering\\deployment\\server.js",
+              "RelativeToolTip": "deployment\\server.js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2024-12-03T15:46:37.13Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
               "Title": "main.f6993c43.js.map",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\deployment\\build\\static\\js\\main.f6993c43.js.map",
               "RelativeDocumentMoniker": "deployment\\build\\static\\js\\main.f6993c43.js.map",
@@ -286,7 +258,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 14,
               "Title": "main.f6993c43.js",
               "DocumentMoniker": "E:\\WorkNy\\AiTranskipering\\deployment\\build\\static\\js\\main.f6993c43.js",
               "RelativeDocumentMoniker": "deployment\\build\\static\\js\\main.f6993c43.js",
