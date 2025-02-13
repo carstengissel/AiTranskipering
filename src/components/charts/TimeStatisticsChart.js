@@ -6,7 +6,7 @@ import { useDashboard } from '../../context/DashboardContext';
 import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
 
-const TimeStatisticsChart = memo(({ data }) => {
+const TimeStatisticsChart = memo(({ data, onChartClick }) => {
   const { filters } = useFilters();
   const { isPending } = useDashboard();
   const [timeScale, setTimeScale] = useState('weeks');
@@ -50,6 +50,12 @@ const TimeStatisticsChart = memo(({ data }) => {
       return [];
     }
   }, [data, timeScale]);
+
+  // Calculate total conversations for current period
+  const currentPeriodCount = useMemo(() => {
+    if (!groupedData || groupedData.length === 0) return 0;
+    return groupedData[groupedData.length - 1].totalCount || 0;
+  }, [groupedData]);
 
   // Calculate max value for YAxis domain
   const maxValue = useMemo(() => {
@@ -108,9 +114,13 @@ const TimeStatisticsChart = memo(({ data }) => {
 
   const customTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const periodData = payload[0].payload;
       return (
         <div className="bg-white p-3 border rounded shadow">
           <p className="font-medium">{label}</p>
+          <p className="text-gray-600 mb-2">
+            Antal samtaler: {periodData.totalCount}
+          </p>
           {payload.map((entry, index) => (
             <p key={index} style={{ color: entry.color }}>
               {entry.name}: {tooltipFormatter(entry.value)}
@@ -122,6 +132,17 @@ const TimeStatisticsChart = memo(({ data }) => {
     return null;
   };
 
+  const getPeriodLabel = () => {
+    switch (timeScale) {
+      case 'days': return 'dag';
+      case 'weeks': return 'uge';
+      case 'months': return 'måned';
+      case 'quarters': return 'kvartal';
+      case 'years': return 'år';
+      default: return 'periode';
+    }
+  };
+
   return (
     <div className="bg-white shadow rounded-lg p-4">
       <div className="flex justify-between items-center mb-4">
@@ -131,6 +152,10 @@ const TimeStatisticsChart = memo(({ data }) => {
             description="Viser gennemsnitlig tid brugt på forskellige dele af processen. 'Tid til godkendelse' er tiden fra AI-referat til godkendelse, mens 'Tid fra transskription til AI-referat' viser behandlingstiden."
           />
           <TimeScaleSelector value={timeScale} onChange={setTimeScale} />
+        </div>
+        <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
+          <p className="text-sm text-gray-600">Samtaler denne {getPeriodLabel()}</p>
+          <p className="text-xl font-semibold text-gray-800">{currentPeriodCount}</p>
         </div>
       </div>
       <div className="w-full h-[300px]">
