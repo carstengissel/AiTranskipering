@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useMemo } from 'react';
 import { useDashboard } from '../../context/DashboardContext';
 import { useFilters } from '../../context/FilterContext';
 import DashboardHeader from './DashboardHeader';
@@ -32,7 +32,38 @@ const SamtalerStatusDashboard = () => {
     fetchDashboardData
   } = useDashboard();
 
-  const { updateFilters } = useFilters();
+  const { updateFilters, filters } = useFilters();
+  const isInitialMount = useRef(true);
+  const prevFiltersRef = useRef(filters);
+
+  // Memoize the current filters to compare with previous
+  const currentFilters = useMemo(() => {
+    return JSON.stringify(filters);
+  }, [filters]);
+
+  // Combined useEffect for initial load and filter changes
+  useEffect(() => {
+    const fetchData = async () => {
+      if (isInitialMount.current) {
+        console.log('Initial dashboard data fetch...');
+        isInitialMount.current = false;
+        await fetchDashboardData({}, true);
+      } else {
+        // Compare stringified filters to detect real changes
+        const prevFiltersStr = JSON.stringify(prevFiltersRef.current);
+        if (currentFilters !== prevFiltersStr) {
+          console.log('Filters changed, fetching new data...', {
+            prev: prevFiltersRef.current,
+            current: filters
+          });
+          await fetchDashboardData(filters);
+          prevFiltersRef.current = filters;
+        }
+      }
+    };
+
+    fetchData();
+  }, [currentFilters, fetchDashboardData]);
 
   const getDateRange = (date, timeScale) => {
     const dateObj = new Date(date);
@@ -106,30 +137,30 @@ const SamtalerStatusDashboard = () => {
         <DashboardKPIs />
 
         <div className="grid grid-cols-1 gap-2">
-          <ChangesStatisticsChart 
-            data={statistics || []} 
-            onChartClick={handleChartClick} 
+          <ChangesStatisticsChart
+            data={statistics || []}
+            onChartClick={handleChartClick}
           />
-          <TimeStatisticsChart 
-            data={statistics || []} 
-            onChartClick={handleChartClick} 
+          <TimeStatisticsChart
+            data={statistics || []}
+            onChartClick={handleChartClick}
           />
-          <MonthlyTimeStatisticsChart 
-            data={statistics || []} 
+          <MonthlyTimeStatisticsChart
+            data={statistics || []}
           />
-          <FeedbackChart 
-            data={statistics || []} 
-            onChartClick={handleChartClick} 
+          <FeedbackChart
+            data={statistics || []}
+            onChartClick={handleChartClick}
           />
-          <SectionChangesChart 
-            data={statistics || []} 
-            onChartClick={handleChartClick} 
+          <SectionChangesChart
+            data={statistics || []}
+            onChartClick={handleChartClick}
           />
-          <AverageSectionChangesChart 
-            data={statistics || []} 
+          <AverageSectionChangesChart
+            data={statistics || []}
           />
-          <ConversationTypesChart 
-            data={statistics || []} 
+          <ConversationTypesChart
+            data={statistics || []}
           />
         </div>
       </div>

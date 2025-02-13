@@ -15,36 +15,41 @@ const DashboardKPIs = () => {
 
   if (!kpis) return null;
 
+  // Calculate percentages
+  const totalFeedback = kpis.positiveFeedback + kpis.negativeFeedback;
+  const positivePercentage = totalFeedback > 0 ? ((kpis.positiveFeedback / totalFeedback) * 100).toFixed(2) : "0.00";
+  const negativePercentage = totalFeedback > 0 ? ((kpis.negativeFeedback / totalFeedback) * 100).toFixed(2) : "0.00";
+
   return (
     <div className="flex flex-wrap gap-2 mb-4">
       <KPICard 
         title="Gns. Thumbs Up andel" 
-        value={kpis.avgThumbsUpRate} 
+        value={positivePercentage}
         unit="%" 
       />
       <KPICard 
         title="Gns. Thumbs Down andel" 
-        value={kpis.avgThumbsDownRate} 
+        value={negativePercentage}
         unit="%" 
       />
       <KPICard 
         title="Gns. Tid til AI Rapport" 
-        value={kpis.avgTimeToAIReport} 
+        value={kpis.avgTimeToAiReport > 0 && kpis.avgTimeToAiReport < 1000 ? Math.round(kpis.avgTimeToAiReport) : 0}
         unit="min" 
       />
       <KPICard 
         title="Gns. Tid til Godkendelse" 
-        value={kpis.avgTimeToApproval} 
+        value={kpis.avgTimeToApproval > 0 && kpis.avgTimeToApproval < 1000 ? Math.round(kpis.avgTimeToApproval) : 0}
         unit="min" 
       />
       <KPICard 
-        title="Uændrede Sektioner" 
-        value={kpis.unchangedSectionsPercentage} 
-        unit="%" 
+        title="Samtaler i alt" 
+        value={kpis.totalCount || 0} 
+        unit="" 
       />
       <KPICard 
         title="Hyppigste Samtaletype" 
-        value={kpis.mostFrequentType} 
+        value={kpis.mostFrequentType || "N/A"} 
         unit="" 
       />
     </div>

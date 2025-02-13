@@ -1,34 +1,43 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useTransition, Suspense } from 'react';
-import { fetchSamtaletyper, fetchReferatData, fetchAIReferatData } from '../services/dashboardAPI';
-import { transformReferatData, calculateKPIs } from '../services/dashboardTransformers';
+import React, { createContext, useContext, useState, useCallback, useMemo, useTransition } from 'react';
+import { 
+  fetchSamtaletyper, 
+  fetchReferatData, 
+  fetchAIReferatData, 
+  fetchKPIStats,
+  fetchTimelineStats 
+} from '../services/dashboardAPI';
+import { transformReferatData } from '../services/dashboardTransformers';
 
 const DashboardContext = createContext();
 
-// Default KPI structure matching calculateKPIs empty state
+// Default KPI structure
 const defaultKPIs = {
-  avgThumbsUpRate: "0.00",
-  avgTimeToAIReport: "0.00",
-  avgTimeToApproval: "0.00",
-  unchangedSectionsPercentage: "0.00",
-  mostFrequentType: "2. og 3. jobsamtale",
-  conversationTypeCounts: {}
+  positiveFeedback: 0,
+  negativeFeedback: 0,
+  avgTimeToAiReport: 0,
+  avgTimeToApproval: 0,
+  totalCount: 0,
+  mostFrequentType: 'N/A'
 };
 
 // Default state structure
 const defaultState = {
   statistics: [],
   kpis: defaultKPIs,
+  timelineData: [],
   count: 0
 };
 
 export const DashboardProvider = ({ children }) => {
   const [statistics, setStatistics] = useState([]);
   const [kpis, setKpis] = useState(defaultKPIs);
+  const [timelineData, setTimelineData] = useState([]);
   const [accurateConversationCount, setAccurateConversationCount] = useState(0);
   const [samtaletyper, setSamtaletyper] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [isThrottled, setIsThrottled] = useState(false);
 
   // Keep previous state for smooth transitions
   const [previousState, setPreviousState] = useState(defaultState);
@@ -47,33 +56,31 @@ export const DashboardProvider = ({ children }) => {
 
   const updateStateWithTransition = useCallback((newState) => {
     startTransition(() => {
-      // Only update if we have new data
+      if (newState.kpis) {
+        setKpis(newState.kpis);
+      }
+      if (newState.timelineData?.length) {
+        setTimelineData(newState.timelineData);
+      }
       if (newState.statistics?.length) {
         setStatistics(newState.statistics);
-        setKpis(newState.kpis);
-        setAccurateConversationCount(newState.count);
-        // Update previous state after successful update
-        setPreviousState({
-          statistics: newState.statistics,
-          kpis: newState.kpis,
-          count: newState.count
-        });
       }
+      setAccurateConversationCount(newState.kpis?.totalCount || 0);
+      // Update previous state after successful update
+      setPreviousState(newState);
     });
-  }, []); // Remove dependencies to break the cycle
+  }, []);
 
   const fetchDashboardData = useCallback(async (filters = {}, isReset = false) => {
-    // Skip throttle if it's a reset operation
-    if (!isReset) {
-      const now = Date.now();
-      if (now - lastFetchTime < 5000) {
-        return;
-      }
+    // Skip if throttled and not a reset operation
+    if (!isReset && isThrottled) {
+      console.log('Throttling dashboard data fetch');
+      return;
     }
 
     try {
       setIsLoading(true);
-      setLastFetchTime(Date.now());
+      setIsThrottled(true);
 
       // Convert conversationType to type for API
       const apiFilters = {
@@ -84,132 +91,73 @@ export const DashboardProvider = ({ children }) => {
 
       console.log('Fetching dashboard data with filters:', apiFilters);
 
-      // Fetch new data
-      const [referatData, aiReferatData] = await Promise.all([
-        fetchReferatData(apiFilters),
-        fetchAIReferatData(apiFilters)
+      // Fetch all required data
+      console.log('Starting API calls...');
+      const [kpiStats, timelineStats] = await Promise.all([
+        fetchKPIStats(apiFilters),
+        fetchTimelineStats(apiFilters)
       ]);
 
-      console.log('Fetched data:', { referatData, aiReferatData });
+      console.log('API responses:', {
+        kpiStats,
+        timelineStats: {
+          length: timelineStats.length,
+          firstPoint: timelineStats[0],
+          lastPoint: timelineStats[timelineStats.length - 1]
+        }
+      });
 
-      // Transform the data
-      const { data: transformedData, kpis: newKpis } = transformReferatData(referatData, aiReferatData);
-      const newCount = transformedData.reduce((sum, item) => sum + (item.count || 0), 0);
+      if (!timelineStats || timelineStats.length === 0) {
+        console.warn('No timeline stats received');
+      }
 
-      // Calculate feedback statistics including NULL values in total
-      const totalFeedback = referatData.length; // Include all records
-      const totalThumbsUp = referatData.filter(item => item.feedback === 1).length;
-      const totalThumbsDown = referatData.filter(item => item.feedback === -1).length;
-
-      // Update state with transition
+      // Update state with new data
       updateStateWithTransition({
-        statistics: transformedData,
-        kpis: {
-          ...newKpis,
-          avgThumbsUpRate: totalFeedback > 0 
-            ? ((totalThumbsUp / totalFeedback) * 100).toFixed(2)
-            : "0.00",
-          avgThumbsDownRate: totalFeedback > 0
-            ? ((totalThumbsDown / totalFeedback) * 100).toFixed(2)
-            : "0.00",
-          conversationTypeCounts: transformedData.reduce((acc, item) => {
-            const type = item.ledetekst || "2. og 3. jobsamtale";
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          }, {})
-        },
-        count: newCount
+        kpis: kpiStats,
+        timelineData: timelineStats,
+        statistics: timelineStats
       });
 
-      console.log('Feedback statistics:', {
-        totalFeedback,
-        totalThumbsUp,
-        totalThumbsDown,
-        avgThumbsUpRate: totalFeedback > 0 ? ((totalThumbsUp / totalFeedback) * 100).toFixed(2) : "0.00",
-        avgThumbsDownRate: totalFeedback > 0 ? ((totalThumbsDown / totalFeedback) * 100).toFixed(2) : "0.00"
-      });
+      // Reset throttle after 1 second
+      setTimeout(() => {
+        setIsThrottled(false);
+      }, 1000);
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // On error, keep previous state visible
-      setStatistics(previousState.statistics);
-      setKpis(previousState.kpis);
-      setAccurateConversationCount(previousState.count);
+      // On error, revert to previous state
+      updateStateWithTransition(previousState);
     } finally {
       setIsLoading(false);
     }
-  }, [samtaletyper, lastFetchTime, updateStateWithTransition]); // Remove previousState from dependencies
+  }, [isThrottled, previousState, updateStateWithTransition]);
 
-  // Initial data fetch - fetch both samtaletyper and dashboard data
-  useEffect(() => {
-    let mounted = true;
-
-    const initializeData = async () => {
-      setIsLoading(true);
-      try {
-        // First fetch samtaletyper
-        const types = await fetchSamtaletyperData();
-        // Then fetch dashboard data with empty filters
-        if (mounted) {
-          await fetchDashboardData({});
-        }
-      } catch (error) {
-        console.error('Error initializing data:', error);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeData();
-
-    return () => {
-      mounted = false;
-    };
-  }, []); // Remove fetchDashboardData from dependencies
-
-  // Listen for filter reset events
-  useEffect(() => {
-    const handleFilterReset = () => {
-      console.log('Filter reset event received, fetching fresh data...');
-      fetchDashboardData({}, true);
-    };
-
-    window.addEventListener('filtersReset', handleFilterReset);
-    return () => window.removeEventListener('filtersReset', handleFilterReset);
-  }, [fetchDashboardData]);
-
-  // Memoize the context value to prevent unnecessary re-renders
+  // Expose the state and functions through context
   const value = useMemo(() => ({
     statistics,
-    setStatistics,
     kpis,
-    setKpis,
-    accurateConversationCount,
-    setAccurateConversationCount,
+    timelineData,
+    count: accurateConversationCount,
     samtaletyper,
-    setSamtaletyper,
-    isLoading: isLoading || isPending,
-    setIsLoading,
-    fetchSamtaletyper: fetchSamtaletyperData,
+    isLoading,
+    isPending,
     fetchDashboardData,
-    isPending
+    fetchSamtaletyperData
   }), [
     statistics,
     kpis,
+    timelineData,
     accurateConversationCount,
     samtaletyper,
     isLoading,
     isPending,
-    fetchSamtaletyperData,
-    fetchDashboardData
+    fetchDashboardData,
+    fetchSamtaletyperData
   ]);
 
   return (
     <DashboardContext.Provider value={value}>
-      <Suspense fallback={null}>
-        {children}
-      </Suspense>
+      {children}
     </DashboardContext.Provider>
   );
 };

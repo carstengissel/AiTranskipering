@@ -15,16 +15,16 @@ const AverageSectionChangesChart = memo(({ data }) => {
     const groupedData = groupDataByTimeScale(data, timeScale, 'date');
 
     return groupedData.map(item => {
-      const calculateAverage = (value) => {
-        return value ? Math.round((value) * 10) / 10 : 0;
+      const calculateAverage = (value, count) => {
+        return value && count ? Math.round((value / count) * 10) / 10 : 0;
       };
 
       return {
         date: item.date,
         displayDate: item.displayDate,
-        viHarAftalt: calculateAverage(item.viHarAftalt),
-        viHarIDagTaltOm: calculateAverage(item.viHarIDagTaltOm),
-        dinJobsogningIndtilNu: calculateAverage(item.dinJobsogningIndtilNu),
+        viHarAftalt: calculateAverage(item.viHarAftalt, item.totalCount),
+        viHarIDagTaltOm: calculateAverage(item.viHarIDagTaltOm, item.totalCount),
+        dinJobsogningIndtilNu: calculateAverage(item.dinJobsogningIndtilNu, item.totalCount),
         count: item.count || 0
       };
     });

@@ -74,11 +74,18 @@ const ConversationSummaryApp = () => {
     try {
       console.log('Fetching data with filters:', activeFilters);
       
+      // Convert dates to YYYY-MM-DD format for the backend
+      const formatDateForBackend = (dateStr) => {
+        if (!dateStr) return null;
+        const [day, month, year] = dateStr.split('.');
+        return `${year}-${month}-${day}`;
+      };
+
       const response = await axios.get('/api/samind_referat', {
         params: {
-          startDate: activeFilters.startDate,
-          endDate: activeFilters.endDate,
-          date: activeFilters.date,
+          startDate: formatDateForBackend(activeFilters.startDate),
+          endDate: formatDateForBackend(activeFilters.endDate),
+          date: formatDateForBackend(activeFilters.date),
           type: activeFilters.type !== 'all' ? activeFilters.type : undefined
         },
         signal: abortControllerRef.current.signal
@@ -101,35 +108,12 @@ const ConversationSummaryApp = () => {
         });
       }
 
-      // Debug log before sorting
-      console.log('Data before sorting:', filteredData.map(r => ({
-        reg_tid: r.reg_tid,
-        parsed_date: new Date(r.reg_tid)
-      })));
-
-      // Sort by date, newest first
+      // Sort by referat_godkendt_at date, newest first
       filteredData.sort((a, b) => {
-        // Parse dates considering SQL datetime format
-        const dateA = new Date(a.reg_tid);
-        const dateB = new Date(b.reg_tid);
-        
-        // Debug log for sorting
-        console.log('Comparing dates:', {
-          a_reg_tid: a.reg_tid,
-          b_reg_tid: b.reg_tid,
-          a_parsed: dateA.toISOString(),
-          b_parsed: dateB.toISOString()
-        });
-
-        // Compare timestamps
+        const dateA = new Date(a.referat_godkendt_at);
+        const dateB = new Date(b.referat_godkendt_at);
         return dateB.getTime() - dateA.getTime();
       });
-
-      // Debug log after sorting
-      console.log('Data after sorting:', filteredData.map(r => ({
-        reg_tid: r.reg_tid,
-        parsed_date: new Date(r.reg_tid).toISOString()
-      })));
 
       console.log('Final processed data:', filteredData);
       setReferats(filteredData);

@@ -16,8 +16,14 @@ const MonthlyTimeStatisticsChart = memo(({ data }) => {
   // Calculate max value for YAxis domain
   const maxValue = useMemo(() => {
     if (!groupedData || groupedData.length === 0) return 100;
-    const maxGodkendelse = Math.max(...groupedData.map(item => Number(item.tidTilGodkendelse) || 0));
-    const maxAIReferat = Math.max(...groupedData.map(item => Number(item.tidTilAIReferat) || 0));
+    const maxGodkendelse = Math.max(...groupedData.map(item => {
+      const val = Number(item.avgTimeToApproval);
+      return !isNaN(val) && val > 0 && val < 1000 ? val : 0;  // Filter out extreme and negative values
+    }));
+    const maxAIReferat = Math.max(...groupedData.map(item => {
+      const val = Number(item.avgTimeToAiReport);
+      return !isNaN(val) && val > 0 && val < 1000 ? val : 0;  // Filter out extreme and negative values
+    }));
     return Math.max(maxGodkendelse, maxAIReferat, 100); // At least 100 for better visibility
   }, [groupedData]);
 
@@ -71,7 +77,7 @@ const MonthlyTimeStatisticsChart = memo(({ data }) => {
             <Legend wrapperStyle={{ fontSize: '10px' }} />
             <Line 
               type="monotone"
-              dataKey="tidTilGodkendelse" 
+              dataKey="avgTimeToApproval"
               stroke="#82ca9d" 
               name="Tid til godkendelse"
               dot={{ r: 4 }}
@@ -80,7 +86,7 @@ const MonthlyTimeStatisticsChart = memo(({ data }) => {
             />
             <Line 
               type="monotone"
-              dataKey="tidTilAIReferat" 
+              dataKey="avgTimeToAiReport"
               stroke="#8884d8" 
               name="Tid fra transskription til AI-referat"
               dot={{ r: 4 }}

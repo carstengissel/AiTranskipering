@@ -52,35 +52,35 @@ const ReportList = ({
           const tidTilGodkendelse = referat.tid_til_godkendelse;
           const tidTilAIReferat = referat.tid_til_ai_referat || referat.tid_fra_transskription_til_ai_referat;
 
-          // Calculate end times
-          const godkendelseEndTime = calculateEndTime(referat.reg_tid, tidTilGodkendelse);
-          const aiReferatEndTime = calculateEndTime(referat.reg_tid, tidTilAIReferat);
+          // Calculate end times using referat_godkendt_at as the base time
+          const baseTime = referat.referat_godkendt_at;
+          const godkendelseEndTime = baseTime ? new Date(baseTime) : null;
+          const aiReferatEndTime = referat.ai_referat_recieved_at ? new Date(referat.ai_referat_recieved_at) : null;
 
           // Format options for datetime display
-          const dateTimeOptions = { 
-            year: 'numeric', 
-            month: '2-digit', 
+          const dateTimeOptions = {
+            year: 'numeric',
+            month: '2-digit',
             day: '2-digit',
-            hour: '2-digit', 
+            hour: '2-digit',
             minute: '2-digit'
           };
 
           return (
-              <div 
-                key={referat.samind_lbnr} 
-                className={`rounded-lg cursor-pointer overflow-hidden transition-all duration-150 hover:opacity-90 ${
-                  changePercentage > 25 && changePercentage <= 75 
-                    ? '!bg-gradient-to-r !from-yellow-400 !via-yellow-500 !to-yellow-400' 
-                    : `${colorClass}`
-                }`}
-                style={{
-                  ...(changePercentage > 25 && changePercentage <= 75 && {
-                    background: 'linear-gradient(to right, #facc15, #eab308, #facc15)'
-                  })
-                }}
-                onClick={() => onSelectReport(referat)}
-              >
-              {/* Card content */}
+            <div 
+              key={referat.samind_lbnr} 
+              className={`rounded-lg cursor-pointer overflow-hidden transition-all duration-150 hover:opacity-90 ${
+                changePercentage > 25 && changePercentage <= 75 
+                  ? '!bg-gradient-to-r !from-yellow-400 !via-yellow-500 !to-yellow-400' 
+                  : `${colorClass}`
+              }`}
+              style={{
+                ...(changePercentage > 25 && changePercentage <= 75 && {
+                  background: 'linear-gradient(to right, #facc15, #eab308, #facc15)'
+                })
+              }}
+              onClick={() => onSelectReport(referat)}
+            >
               <div className="p-4">
                 {/* Card header with title and feedback status */}
                 <div className="flex justify-between items-start mb-2 p-2 rounded">
@@ -91,16 +91,16 @@ const ReportList = ({
                 </div>
 
                 {/* Date and time ago */}
-                <div className="flex items-center gap-2 text-sm mb-3 p-2 rounded">
+                <div key={`date-${referat.samind_lbnr}`} className="flex items-center gap-2 text-sm mb-3 p-2 rounded">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(referat.reg_tid).toLocaleDateString()}</span>
+                  <span>{referat.referat_godkendt_at ? new Date(referat.referat_godkendt_at).toLocaleDateString() : '-'}</span>
                   <span className="text-gray-400">•</span>
-                  <span>{formatTimeAgo(referat.reg_tid)}</span>
+                  <span>{referat.referat_godkendt_at ? formatTimeAgo(referat.referat_godkendt_at) : '-'}</span>
                 </div>
 
                 {/* Time information */}
                 <div className="space-y-2 p-2 rounded">
-                  <div className="flex items-center gap-2 text-sm">
+                  <div key={`godkendelse-${referat.samind_lbnr}`} className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Clock className="h-4 w-4" />
                       <span>Tid til godkendelse:</span>
@@ -110,14 +110,14 @@ const ReportList = ({
                           : '-'}
                       </span>
                     </div>
-                    {tidTilGodkendelse && (
+                    {tidTilGodkendelse && godkendelseEndTime && referat.transcription_recieved_at && (
                       <div className="ml-2 text-xs text-gray-500">
-                        ({new Date(referat.reg_tid).toLocaleString(undefined, dateTimeOptions)} → {godkendelseEndTime?.toLocaleString(undefined, dateTimeOptions)})
+                        ({new Date(referat.transcription_recieved_at).toLocaleString(undefined, dateTimeOptions)} → {godkendelseEndTime.toLocaleString(undefined, dateTimeOptions)})
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm">
+                  <div key={`ai-referat-${referat.samind_lbnr}`} className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Clock className="h-4 w-4" />
                       <span>Tid til AI-referat:</span>
@@ -127,27 +127,13 @@ const ReportList = ({
                           : '-'}
                       </span>
                     </div>
-                    {tidTilAIReferat && (
+                    {tidTilAIReferat && aiReferatEndTime && referat.transcription_recieved_at && (
                       <div className="ml-2 text-xs text-gray-500">
-                        ({new Date(referat.reg_tid).toLocaleString(undefined, dateTimeOptions)} → {aiReferatEndTime?.toLocaleString(undefined, dateTimeOptions)})
+                        ({new Date(referat.transcription_recieved_at).toLocaleString(undefined, dateTimeOptions)} → {aiReferatEndTime.toLocaleString(undefined, dateTimeOptions)})
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* Member and case worker information */}
-                {/*<div className="mt-3 space-y-2 text-sm text-gray-600">*/}
-                {/*  <div className="flex items-center gap-1">*/}
-                {/*    <User className="h-4 w-4" />*/}
-                {/*    <span>CPR:</span>*/}
-                {/*    <span className="font-medium">{referat.cpr_nr}</span>*/}
-                {/*  </div>*/}
-                {/*  <div className="flex items-center gap-1">*/}
-                {/*    <UserCircle className="h-4 w-4" />*/}
-                {/*    <span>Sagsbehandler:</span>*/}
-                {/*    <span className="font-medium">{referat.reg_init}</span>*/}
-                {/*  </div>*/}
-                {/*</div>*/}
               </div>
 
               {/* Card footer showing change status */}
@@ -157,23 +143,23 @@ const ReportList = ({
                   : changePercentage <= 70
                   ? 'border-yellow-400 bg-yellow-100'
                   : 'border-red-400 bg-red-100'
-               }`}>
+              }`}>
                 <div className="flex justify-between items-center">
-                   <div className="flex items-center gap-2">
-                     <div className={`w-4 h-4 rounded-full ${
-                       changePercentage <= 25
-                         ? 'bg-green-500'
-                         : changePercentage <= 70
-                         ? 'bg-yellow-500'
-                         : 'bg-red-500'
-                     }`} />
-                      <span className={`font-semibold ${
-                        changePercentage <= 25
-                          ? 'text-green-500'
-                          : changePercentage <= 70
-                          ? 'text-yellow-500'
-                          : 'text-red-500'
-                     }`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded-full ${
+                      changePercentage <= 25
+                        ? 'bg-green-500'
+                        : changePercentage <= 70
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                    }`} />
+                    <span className={`font-semibold ${
+                      changePercentage <= 25
+                        ? 'text-green-500'
+                        : changePercentage <= 70
+                        ? 'text-yellow-500'
+                        : 'text-red-500'
+                    }`}>
                       {changePercentage > 0 
                         ? `${Math.round(changePercentage)}% ændret` 
                         : 'Ingen ændringer'}

@@ -9,75 +9,61 @@ export const parseReferat = (referat) => {
     };
   }
 
-  const sections = {
-    viHarAftalt: '',
-    viHarIDagTaltOm: '',
-    dinJobsogningIndtilNu: ''
-  };
+  try {
+    const text = typeof referat === 'string' ? referat : '';
+    const sections = {
+      viHarAftalt: '',
+      viHarIDagTaltOm: '',
+      dinJobsogningIndtilNu: ''
+    };
 
-  console.log('Type of referat in parseReferat:', typeof referat);
+    // Extract sections using regex
+    const viHarAftaltMatch = text.match(/Vi har aftalt[^]*?([\s\S]*?)(?=Vi har i dag talt om|Din jobsøgning indtil nu|$)/i);
+    const viHarTaltOmMatch = text.match(/Vi har i dag talt om[^]*?([\s\S]*?)(?=Vi har aftalt|Din jobsøgning indtil nu|$)/i);
+    const jobsogningMatch = text.match(/Din jobsøgning indtil nu[^]*?([\s\S]*?)(?=Vi har aftalt|Vi har i dag talt om|$)/i);
 
-  const lines = referat.split('\n');
-  let currentSection = null;
-  let sectionText = [];
+    if (viHarAftaltMatch) sections.viHarAftalt = viHarAftaltMatch[1].trim();
+    if (viHarTaltOmMatch) sections.viHarIDagTaltOm = viHarTaltOmMatch[1].trim();
+    if (jobsogningMatch) sections.dinJobsogningIndtilNu = jobsogningMatch[1].trim();
 
-  for (const line of lines) {
-    if (line.includes('Vi har aftalt')) {
-      if (currentSection) {
-        sections[currentSection] = sectionText.join('\n');
-      }
-      currentSection = 'viHarAftalt';
-      sectionText = [];
-    } else if (line.includes('Vi har i dag talt om')) {
-      if (currentSection) {
-        sections[currentSection] = sectionText.join('\n');
-      }
-      currentSection = 'viHarIDagTaltOm';
-      sectionText = [];
-    } else if (line.includes('Din jobsøgning indtil nu')) {
-      if (currentSection) {
-        sections[currentSection] = sectionText.join('\n');
-      }
-      currentSection = 'dinJobsogningIndtilNu';
-      sectionText = [];
-    } else if (currentSection && line.trim()) {
-      sectionText.push(line.trim());
-    }
+    return sections;
+  } catch (err) {
+    console.error('Error parsing referat:', err);
+    return {
+      viHarAftalt: '',
+      viHarIDagTaltOm: '',
+      dinJobsogningIndtilNu: ''
+    };
   }
-
-  if (currentSection) {
-    sections[currentSection] = sectionText.join('\n');
-  }
-
-  return sections;
 };
 
 export const countChangedSections = (originalReferat, aiReferat) => {
   const originalSections = parseReferat(originalReferat);
   const aiSections = parseReferat(aiReferat);
 
-  // If the referats are identical, return all zeros
-  if (originalReferat === aiReferat) {
-    return {
-      viHarAftalt: 0,
-      viHarIDagTaltOm: 0,
-      dinJobsogningIndtilNu: 0
-    };
+  const changes = {
+    viHarAftalt: 0,
+    viHarIDagTaltOm: 0,
+    dinJobsogningIndtilNu: 0
+  };
+
+  // Calculate changes for each section using diffWords
+  if (originalSections.viHarAftalt !== aiSections.viHarAftalt) {
+    const diff = diffWords(aiSections.viHarAftalt, originalSections.viHarAftalt);
+    changes.viHarAftalt = diff.filter(part => part.added || part.removed).length;
   }
 
-  const countDiffsInSection = (original, ai) => {
-    if (!original && !ai) return 0;
-    const diff = diffWords(original || '', ai || '');
-    return diff.reduce((count, part) => {
-      return count + (part.added || part.removed ? 1 : 0);
-    }, 0);
-  };
+  if (originalSections.viHarIDagTaltOm !== aiSections.viHarIDagTaltOm) {
+    const diff = diffWords(aiSections.viHarIDagTaltOm, originalSections.viHarIDagTaltOm);
+    changes.viHarIDagTaltOm = diff.filter(part => part.added || part.removed).length;
+  }
 
-  return {
-    viHarAftalt: countDiffsInSection(originalSections.viHarAftalt, aiSections.viHarAftalt),
-    viHarIDagTaltOm: countDiffsInSection(originalSections.viHarIDagTaltOm, aiSections.viHarIDagTaltOm),
-    dinJobsogningIndtilNu: countDiffsInSection(originalSections.dinJobsogningIndtilNu, aiSections.dinJobsogningIndtilNu)
-  };
+  if (originalSections.dinJobsogningIndtilNu !== aiSections.dinJobsogningIndtilNu) {
+    const diff = diffWords(aiSections.dinJobsogningIndtilNu, originalSections.dinJobsogningIndtilNu);
+    changes.dinJobsogningIndtilNu = diff.filter(part => part.added || part.removed).length;
+  }
+
+  return changes;
 };
 
 const parseReferatSections = (referat) => {
@@ -225,7 +211,7 @@ const processReferat = (referat, aiReferat) => {
     // Process time values - they come as minutes from DATEDIFF in SQL
     const tidTilAIReferat = typeof referat.tid_fra_transskription_til_ai_referat === 'number' && 
                            !isNaN(referat.tid_fra_transskription_til_ai_referat)
-                           ? Math.max(0, Math.min(referat.tid_fra_transskription_til_ai_referat, 1440)) // Cap at 24 hours
+                           ? Math.max(0, Math.min(referat.tid_fra_transskription_til_ai_referat, 1000)) // Cap at 1000 minutes
                            : null;
 
     const tidTilGodkendelse = typeof referat.tid_til_godkendelse === 'number' && 

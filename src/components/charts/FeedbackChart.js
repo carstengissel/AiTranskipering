@@ -7,11 +7,11 @@ import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
 
 const calculateYAxisProps = (data) => {
-  // Find the maximum value across thumbsUp and thumbsDown
+  // Find the maximum value across positive and negative feedback
   const maxValue = Math.max(
     ...data.flatMap(item => [
-      item.thumbsUp || 0,
-      item.thumbsDown || 0
+      item.positiveFeedback || 0,
+      item.negativeFeedback || 0
     ])
   );
 
@@ -38,12 +38,6 @@ const FeedbackChart = memo(({ data }) => {
   const groupedData = useMemo(() => {
     return groupDataByTimeScale(data, timeScale, 'date');
   }, [data, timeScale]);
-
-  const handleClick = (data) => {
-    if (data && data.payload) {
-      // onChartClick(data.payload); // Removed this line as onChartClick is not defined
-    }
-  };
 
   const yAxisProps = calculateYAxisProps(groupedData);
 
@@ -84,19 +78,21 @@ const FeedbackChart = memo(({ data }) => {
             <Legend wrapperStyle={{ fontSize: '10px' }} />
             <Line 
               type="monotone" 
-              dataKey="thumbsUp" 
+              dataKey="positiveFeedback" 
               stroke="#82ca9d" 
               name="Thumbs Up"
-              activeDot={{ onClick: handleClick, cursor: 'pointer' }}
-              dot={{ cursor: 'pointer', onClick: handleClick }}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
             <Line 
               type="monotone" 
-              dataKey="thumbsDown" 
+              dataKey="negativeFeedback" 
               stroke="#ff8042" 
               name="Thumbs Down"
-              activeDot={{ onClick: handleClick, cursor: 'pointer' }}
-              dot={{ cursor: 'pointer', onClick: handleClick }}
+              dot={{ r: 4 }}
+              activeDot={{ r: 6 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

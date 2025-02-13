@@ -64,73 +64,57 @@ export const groupDataByTimeScale = (data, scale = 'weeks', dateAccessor = 'date
 
 const aggregateGroupData = (items) => {
   const result = {
-    thumbsUp: 0,
-    thumbsDown: 0,
-    tidTilGodkendelse: 0,
-    tidTilAIReferat: 0,
+    totalCount: 0,
+    positiveFeedback: 0,
+    negativeFeedback: 0,
+    avgTimeToAiReport: 0,
+    avgTimeToApproval: 0,
     viHarAftalt: 0,
     viHarIDagTaltOm: 0,
     dinJobsogningIndtilNu: 0,
-    uaendredeSektioner: 0,
-    count: items.length
+    uaendredeSektioner: 0
   };
 
   // Track valid time entries
-  let validGodkendelseCount = 0;
-  let validAIReferatCount = 0;
+  let validAiReportCount = 0;
+  let validApprovalCount = 0;
 
   items.forEach(item => {
+    result.totalCount++;
+
     // Handle feedback counts
-    if (item.feedback === 1) result.thumbsUp++;
-    if (item.feedback === -1) result.thumbsDown++;
+    if (item.positiveFeedback) result.positiveFeedback += item.positiveFeedback;
+    if (item.negativeFeedback) result.negativeFeedback += item.negativeFeedback;
 
     // Handle time values
-    if (typeof item.tidTilGodkendelse === 'number' && 
-        !isNaN(item.tidTilGodkendelse) && 
-        item.tidTilGodkendelse > 0) {
-      result.tidTilGodkendelse += item.tidTilGodkendelse;
-      validGodkendelseCount++;
+    if (typeof item.avgTimeToAiReport === 'number' && 
+        !isNaN(item.avgTimeToAiReport) && 
+        item.avgTimeToAiReport > 0) {
+      result.avgTimeToAiReport += item.avgTimeToAiReport;
+      validAiReportCount++;
     }
 
-    if (typeof item.tidTilAIReferat === 'number' && 
-        !isNaN(item.tidTilAIReferat) && 
-        item.tidTilAIReferat > 0) {
-      result.tidTilAIReferat += item.tidTilAIReferat;
-      validAIReferatCount++;
+    if (typeof item.avgTimeToApproval === 'number' && 
+        !isNaN(item.avgTimeToApproval) && 
+        item.avgTimeToApproval > 0) {
+      result.avgTimeToApproval += item.avgTimeToApproval;
+      validApprovalCount++;
     }
 
     // Handle section changes
-    if (typeof item.viHarAftalt === 'number') result.viHarAftalt += item.viHarAftalt;
-    if (typeof item.viHarIDagTaltOm === 'number') result.viHarIDagTaltOm += item.viHarIDagTaltOm;
-    if (typeof item.dinJobsogningIndtilNu === 'number') result.dinJobsogningIndtilNu += item.dinJobsogningIndtilNu;
-    if (typeof item.uaendredeSektioner === 'number') result.uaendredeSektioner += item.uaendredeSektioner;
+    if (item.viHarAftalt) result.viHarAftalt += item.viHarAftalt;
+    if (item.viHarIDagTaltOm) result.viHarIDagTaltOm += item.viHarIDagTaltOm;
+    if (item.dinJobsogningIndtilNu) result.dinJobsogningIndtilNu += item.dinJobsogningIndtilNu;
+    if (item.uaendredeSektioner) result.uaendredeSektioner += item.uaendredeSektioner;
   });
 
-  // Calculate averages for time values
-  result.tidTilGodkendelse = validGodkendelseCount > 0
-    ? result.tidTilGodkendelse / validGodkendelseCount
-    : 0;
-
-  result.tidTilAIReferat = validAIReferatCount > 0
-    ? result.tidTilAIReferat / validAIReferatCount
-    : 0;
-
-  // Calculate section averages
-  const totalItems = items.length;
-  if (totalItems > 0) {
-    result.viHarAftalt = result.viHarAftalt / totalItems;
-    result.viHarIDagTaltOm = result.viHarIDagTaltOm / totalItems;
-    result.dinJobsogningIndtilNu = result.dinJobsogningIndtilNu / totalItems;
-    result.uaendredeSektioner = result.uaendredeSektioner / totalItems;
+  // Calculate averages
+  if (validAiReportCount > 0) {
+    result.avgTimeToAiReport = Math.round(result.avgTimeToAiReport / validAiReportCount);
   }
-
-  console.log('Aggregated data for period:', {
-    items: items.length,
-    validGodkendelseCount,
-    validAIReferatCount,
-    tidTilGodkendelse: result.tidTilGodkendelse,
-    tidTilAIReferat: result.tidTilAIReferat
-  });
+  if (validApprovalCount > 0) {
+    result.avgTimeToApproval = Math.round(result.avgTimeToApproval / validApprovalCount);
+  }
 
   return result;
 };

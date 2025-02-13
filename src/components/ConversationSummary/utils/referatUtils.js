@@ -105,12 +105,12 @@ export const calculateEndTime = (startTime, minutes) => {
  * // If there are two reports on 2024-01-01, returns 1 for the first and 2 for the second
  */
 export const getSequenceNumberForDate = (referat, allReferats) => {
-  const referatDate = new Date(referat.reg_tid).toISOString().split('T')[0];
+  const referatDate = new Date(referat.referat_godkendt_at).toISOString().split('T')[0];
   
   // Get all reports from the same date and sort by registration time
   const sameDayReferats = allReferats
-    .filter(r => new Date(r.reg_tid).toISOString().split('T')[0] === referatDate)
-    .sort((a, b) => new Date(a.reg_tid) - new Date(b.reg_tid));
+    .filter(r => new Date(r.referat_godkendt_at).toISOString().split('T')[0] === referatDate)
+    .sort((a, b) => new Date(a.referat_godkendt_at) - new Date(b.referat_godkendt_at));
   
   // Find the index of the current report in the sorted list
   const sequence = sameDayReferats.findIndex(r => 
@@ -134,9 +134,10 @@ export const getSequenceNumberForDate = (referat, allReferats) => {
  * // returns "Referat 11.11.2024 - #1"
  */
 export const formatReferatTitle = (referat, allReferats) => {
-  const date = new Date(referat.reg_tid).toLocaleDateString();
+  if (!referat.referat_godkendt_at) return 'Referat';
+  const date = new Date(referat.referat_godkendt_at).toLocaleDateString();
   const sequence = getSequenceNumberForDate(referat, allReferats);
-  return `Referat ${date} - #${sequence}`;
+  return `Referat ${date}${sequence > 1 ? ` - #${sequence}` : ''}`;
 };
 
 /**

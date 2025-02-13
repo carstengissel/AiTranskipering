@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import ChartTooltip from '../ChartTooltip';
 import { useFilters } from '../../context/FilterContext';
@@ -10,31 +10,116 @@ const TimeStatisticsChart = memo(({ data }) => {
   const { filters } = useFilters();
   const { isPending } = useDashboard();
   const [timeScale, setTimeScale] = useState('weeks');
+  const [error, setError] = useState(null);
+
+  // Log data changes
+  useEffect(() => {
+    console.log('TimeStatisticsChart data:', {
+      hasData: !!data,
+      length: data?.length,
+      firstPoint: data?.[0],
+      lastPoint: data?.[data?.length - 1]
+    });
+  }, [data]);
 
   const groupedData = useMemo(() => {
-    return groupDataByTimeScale(data, timeScale, 'date');
+    try {
+      if (!data || data.length === 0) {
+        console.log('No data available for TimeStatisticsChart');
+        return [];
+      }
+
+      console.log('Raw data for TimeStatisticsChart:', data);
+      const grouped = groupDataByTimeScale(data, timeScale, 'date');
+      console.log('Grouped data:', grouped);
+
+      // Validate data format
+      if (!grouped.every(item => 
+        typeof item.avgTimeToAiReport === 'number' && 
+        typeof item.avgTimeToApproval === 'number'
+      )) {
+        console.error('Invalid data format in grouped data');
+        setError('Invalid data format');
+        return [];
+      }
+
+      return grouped;
+    } catch (err) {
+      console.error('Error processing data:', err);
+      setError(err.message);
+      return [];
+    }
   }, [data, timeScale]);
 
   // Calculate max value for YAxis domain
   const maxValue = useMemo(() => {
     if (!groupedData || groupedData.length === 0) return 100;
-    const maxGodkendelse = Math.max(...groupedData.map(item => Number(item.tidTilGodkendelse) || 0));
-    const maxAIReferat = Math.max(...groupedData.map(item => Number(item.tidTilAIReferat) || 0));
-    return Math.max(maxGodkendelse, maxAIReferat, 100); // At least 100 for better visibility
+    
+    try {
+      const maxApproval = Math.max(...groupedData.map(item => {
+        const val = Number(item.avgTimeToApproval);
+        return !isNaN(val) && val > 0 && val < 1000 ? val : 0;  // Filter out extreme and negative values
+      }));
+      const maxAIReport = Math.max(...groupedData.map(item => {
+        const val = Number(item.avgTimeToAiReport);
+        return !isNaN(val) && val > 0 && val < 1000 ? val : 0;  // Filter out extreme and negative values
+      }));
+      const max = Math.max(maxApproval, maxAIReport, 100);
+      console.log('Max values:', { maxApproval, maxAIReport, max });
+      return max;
+    } catch (err) {
+      console.error('Error calculating max value:', err);
+      return 100;
+    }
   }, [groupedData]);
 
-  // If no data, return a placeholder or message
-  if (!data || data.length === 0) {
+  // If no data or error, return a placeholder or message
+  if (error) {
     return (
       <div className="bg-white shadow rounded-lg p-4 text-center">
-        No data available
+        <p className="text-red-500">Der opstod en fejl: {error}</p>
+        <p className="text-sm text-gray-400">Prøv at opdatere siden</p>
       </div>
     );
   }
 
-  const tooltipFormatter = (value) => {
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white shadow rounded-lg p-4 text-center">
+        <p className="text-gray-500">Ingen data tilgængelig</p>
+        <p className="text-sm text-gray-400">Vælg et andet tidsinterval eller fjern filtre</p>
+      </div>
+    );
+  }
+
+  if (!groupedData || groupedData.length === 0) {
+    return (
+      <div className="bg-white shadow rounded-lg p-4 text-center">
+        <p className="text-gray-500">Ingen data for den valgte periode</p>
+        <p className="text-sm text-gray-400">Prøv at vælge et andet tidsinterval</p>
+      </div>
+    );
+  }
+
+  const tooltipFormatter = (value, name) => {
     if (!value || value === 0) return '0 min';
     return `${Math.round(value)} min`;
+  };
+
+  const customTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 border rounded shadow">
+          <p className="font-medium">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} style={{ color: entry.color }}>
+              {entry.name}: {tooltipFormatter(entry.value)}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -70,25 +155,27 @@ const TimeStatisticsChart = memo(({ data }) => {
               tickFormatter={tooltipFormatter}
               allowDecimals={false}
             />
-            <Tooltip formatter={tooltipFormatter} />
+            <Tooltip content={customTooltip} />
             <Legend wrapperStyle={{ fontSize: '10px' }} />
             <Line 
               type="monotone"
-              dataKey="tidTilGodkendelse" 
+              dataKey="avgTimeToApproval" 
               stroke="#82ca9d" 
               name="Tid til godkendelse"
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
               isAnimationActive={false}
+              connectNulls
             />
             <Line 
               type="monotone"
-              dataKey="tidTilAIReferat" 
+              dataKey="avgTimeToAiReport" 
               stroke="#8884d8" 
               name="Tid fra transskription til AI-referat"
               dot={{ r: 4 }}
               activeDot={{ r: 6 }}
               isAnimationActive={false}
+              connectNulls
             />
           </LineChart>
         </ResponsiveContainer>

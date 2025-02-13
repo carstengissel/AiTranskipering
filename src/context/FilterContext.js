@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useTransition } from 'react';
-import { useDashboard } from './DashboardContext';
 
 const FilterContext = createContext();
 
@@ -13,7 +12,6 @@ const defaultFilters = {
 export const FilterProvider = ({ children }) => {
   const [filters, setFilters] = useState(defaultFilters);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { fetchDashboardData } = useDashboard();
   const [isPending, startTransition] = useTransition();
 
   // Keep track of previous filters for smooth transitions
@@ -21,7 +19,7 @@ export const FilterProvider = ({ children }) => {
 
   // Memoize the update function to prevent unnecessary re-renders
   const updateFilters = useCallback((newFilters) => {
-    setPreviousFilters(filters); // Store current filters before updating
+    setPreviousFilters(current => current); // Store current filters before updating
 
     startTransition(() => {
       setFilters(prev => {
@@ -31,18 +29,17 @@ export const FilterProvider = ({ children }) => {
         );
         
         if (hasChanges) {
-          // Keep current filters visible while fetching new data
-          fetchDashboardData(newFilters);
+          console.log('Updating filters:', { prev, newFilters });
           return { ...prev, ...newFilters };
         }
         return prev;
       });
     });
-  }, [filters, fetchDashboardData]);
+  }, []); // Remove filters dependency
 
   const resetFilters = useCallback(() => {
     // Store current filters before resetting
-    setPreviousFilters(filters);
+    setPreviousFilters(current => current);
 
     // Reset all filters including any additional ones that might have been added
     const resetState = {
@@ -53,18 +50,15 @@ export const FilterProvider = ({ children }) => {
       date: null
     };
 
-    // Use startTransition for the state update and data fetch
+    // Use startTransition for the state update
     startTransition(() => {
-      // Keep current filters visible while fetching new data
       setFilters(resetState);
-      // Fetch fresh data with no filters
-      fetchDashboardData({}, true);
     });
 
     // Clear URL parameters
     const newUrl = window.location.pathname;
     window.history.pushState({}, '', newUrl);
-  }, [filters, fetchDashboardData]);
+  }, []); // Remove filters dependency
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
@@ -73,7 +67,7 @@ export const FilterProvider = ({ children }) => {
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     filters,
-    previousFilters, // Expose previous filters for transitions
+    previousFilters,
     updateFilters,
     resetFilters,
     isSidebarOpen,
