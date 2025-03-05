@@ -80,7 +80,8 @@ const aggregateGroupData = (items) => {
   let validApprovalCount = 0;
 
   items.forEach(item => {
-    result.totalCount++;
+    // Use the actual totalCount from the item instead of incrementing by 1
+    result.totalCount += Number(item.totalCount || 0);
 
     // Handle feedback counts
     if (item.positiveFeedback) result.positiveFeedback += item.positiveFeedback;
