@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chart Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .chart-container {
+      width: 800px;
+      height: 400px;
+      margin-bottom: 40px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .data-display {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Section Changes Test</h1>
+  
+  <div class="chart-container">
+    <h2>Section Changes Over Time</h2>
+    <canvas id="sectionChangesChart"></canvas>
+  </div>
+  
+  <div class="chart-container">
+    <h2>Average Section Changes Over Time</h2>
+    <canvas id="avgSectionChangesChart"></canvas>
+  </div>
+  
+  <div class="data-display" id="dataDisplay"></div>
+  
+  <script>
+    // Generate mock data
+    function generateMockData() {
+      const result = [];
+      const startDate = new Date('2025-02-01');
+      const days = 15;
+      
+      for (let i = 0; i < days; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i);
+        
+        // Generate random data for this date
+        const totalCount = Math.floor(Math.random() * 10) + 1;
+        const viHarAftalt = Math.floor(Math.random() * totalCount);
+        const viHarIDagTaltOm = Math.floor(Math.random() * totalCount);
+        const dinJobsogningIndtilNu = Math.floor(Math.random() * totalCount);
+        const uaendredeSektioner = totalCount - (viHarAftalt + viHarIDagTaltOm + dinJobsogningIndtilNu);
+        
+        result.push({
+          date: currentDate.toISOString(),
+          displayDate: currentDate.toLocaleDateString('da-DK'),
+          totalCount: totalCount,
+          viHarAftalt: viHarAftalt,
+          viHarIDagTaltOm: viHarIDagTaltOm,
+          dinJobsogningIndtilNu: dinJobsogningIndtilNu,
+          uaendredeSektioner: uaendredeSektioner >= 0 ? uaendredeSektioner : 0
+        });
+      }
+      
+      // Add a specific entry for February 6, 2025 with the changes matching the screenshot
+      const feb6 = new Date('2025-02-06');
+      const feb6Index = result.findIndex(item => {
+        const itemDate = new Date(item.date);
+        return itemDate.getDate() === 6 && 
+               itemDate.getMonth() === 1 && // February is month 1 (0-indexed)
+               itemDate.getFullYear() === 2025;
+      });
+      
+      if (feb6Index >= 0) {
+        // Update the existing entry
+        result[feb6Index] = {
+          ...result[feb6Index],
+          totalCount: 1,
+          viHarAftalt: 1,
+          viHarIDagTaltOm: 1,
+          dinJobsogningIndtilNu: 1,
+          uaendredeSektioner: 0
+        };
+      } else {
+        // Add a new entry for February 6
+        result.push({
+          date: feb6.toISOString(),
+          displayDate: feb6.toLocaleDateString('da-DK'),
+          totalCount: 1,
+          viHarAftalt: 1,
+          viHarIDagTaltOm: 1,
+          dinJobsogningIndtilNu: 1,
+          uaendredeSektioner: 0
+        });
+      }
+      
+      // Sort by date
+      result.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      return result;
+    }
+    
+    // Create the charts
+    function createCharts(data) {
+      // Section Changes Chart
+      const sectionChangesCtx = document.getElementById('sectionChangesChart').getContext('2d');
+      new Chart(sectionChangesCtx, {
+        type: 'line',
+        data: {
+          labels: data.map(item => item.displayDate),
+          datasets: [
+            {
+              label: 'Vi har aftalt',
+              data: data.map(item => item.viHarAftalt),
+              borderColor: '#8884d8',
+              backgroundColor: 'rgba(136, 132, 216, 0.2)',
+              tension: 0.1
+            },
+            {
+              label: 'Vi har i dag talt om',
+              data: data.map(item => item.viHarIDagTaltOm),
+              borderColor: '#82ca9d',
+              backgroundColor: 'rgba(130, 202, 157, 0.2)',
+              tension: 0.1
+            },
+            {
+              label: 'Din jobsøgning indtil nu',
+              data: data.map(item => item.dinJobsogningIndtilNu),
+              borderColor: '#ffc658',
+              backgroundColor: 'rgba(255, 198, 88, 0.2)',
+              tension: 0.1
+            },
+            {
+              label: 'Uændrede sektioner',
+              data: data.map(item => item.uaendredeSektioner),
+              borderColor: '#ff7300',
+              backgroundColor: 'rgba(255, 115, 0, 0.2)',
+              tension: 0.1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Antal ændringer'
+              }
+            }
+          }
+        }
+      });
+      
+      // Average Section Changes Chart
+      const avgSectionChangesCtx = document.getElementById('avgSectionChangesChart').getContext('2d');
+      new Chart(avgSectionChangesCtx, {
+        type: 'bar',
+        data: {
+          labels: data.map(item => item.displayDate),
+          datasets: [
+            {
+              label: 'Vi har aftalt',
+              data: data.map(item => item.totalCount > 0 ? item.viHarAftalt / item.totalCount : 0),
+              backgroundColor: '#8884d8'
+            },
+            {
+              label: 'Vi har i dag talt om',
+              data: data.map(item => item.totalCount > 0 ? item.viHarIDagTaltOm / item.totalCount : 0),
+              backgroundColor: '#82ca9d'
+            },
+            {
+              label: 'Din jobsøgning indtil nu',
+              data: data.map(item => item.totalCount > 0 ? item.dinJobsogningIndtilNu / item.totalCount : 0),
+              backgroundColor: '#ffc658'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Gennemsnitlige ændringer'
+              }
+            }
+          }
+        }
+      });
+      
+      // Display the data
+      document.getElementById('dataDisplay').textContent = JSON.stringify(data, null, 2);
+    }
+    
+    // Initialize
+    const mockData = generateMockData();
+    createCharts(mockData);
+  </script>
+</body>
+</html>

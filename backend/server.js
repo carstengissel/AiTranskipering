@@ -65,9 +65,130 @@ async function connectToDatabase() {
     try {
         await sql.connect(config);
         console.log('Connected to the database');
+        
+        console.log('Migrating word processing functions...');
+        try {
+            console.log('Creating SQL functions...');
+            
+            // Drop existing functions
+            await sql.query(`
+                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'FN' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'CalculateSectionChanges')
+                    DROP FUNCTION [dbo].[CalculateSectionChanges];
+            `);
+
+            await sql.query(`
+                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'FN' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'ExtractSection')
+                    DROP FUNCTION [dbo].[ExtractSection];
+            `);
+
+            await sql.query(`
+                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'IF' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'SplitIntoWords')
+                    DROP FUNCTION [dbo].[SplitIntoWords];
+            `);
+
+            // Create functions one by one
+            await sql.query(`
+                CREATE FUNCTION [dbo].[SplitIntoWords]
+                (
+                    @text NVARCHAR(MAX)
+                )
+                RETURNS TABLE
+                AS
+                RETURN
+                    SELECT
+                        LTRIM(RTRIM(value)) AS word
+                    FROM STRING_SPLIT(REPLACE(REPLACE(@text, CHAR(13), ' '), CHAR(10), ' '), ' ')
+                    WHERE LTRIM(RTRIM(value)) != '';
+            `);
+
+            await sql.query(`
+                CREATE FUNCTION [dbo].[ExtractSection]
+                (
+                    @text NVARCHAR(MAX),
+                    @startMarker NVARCHAR(100),
+                    @endMarker NVARCHAR(100)
+                )
+                RETURNS NVARCHAR(MAX)
+                AS
+                BEGIN
+                    DECLARE @startPos INT = CHARINDEX(@startMarker, @text);
+                    DECLARE @endPos INT;
+                    
+                    IF @startPos = 0
+                        RETURN '';
+                    
+                    SET @startPos = @startPos + LEN(@startMarker);
+                    SET @endPos = CHARINDEX(@endMarker, @text, @startPos);
+                    
+                    IF @endPos = 0
+                        SET @endPos = LEN(@text) + 1;
+                    
+                    RETURN LTRIM(RTRIM(SUBSTRING(@text, @startPos, @endPos - @startPos)));
+                END;
+            `);
+
+            await sql.query(`
+                CREATE FUNCTION [dbo].[CalculateSectionChanges]
+                (
+                    @text1 NVARCHAR(MAX),
+                    @text2 NVARCHAR(MAX),
+                    @sectionStart NVARCHAR(100),
+                    @sectionEnd NVARCHAR(100)
+                )
+                RETURNS INT
+                AS
+                BEGIN
+                    DECLARE @section1 NVARCHAR(MAX) = [dbo].[ExtractSection](@text1, @sectionStart, @sectionEnd);
+                    DECLARE @section2 NVARCHAR(MAX) = [dbo].[ExtractSection](@text2, @sectionStart, @sectionEnd);
+                    
+                    IF @section1 = '' OR @section2 = ''
+                        RETURN 0;
+
+                    DECLARE @changes INT = (
+                        SELECT COUNT(*)
+                        FROM (
+                            SELECT word
+                            FROM dbo.SplitIntoWords(@section1)
+                            EXCEPT
+                            SELECT word
+                            FROM dbo.SplitIntoWords(@section2)
+                        ) AS diff1
+                    ) + (
+                        SELECT COUNT(*)
+                        FROM (
+                            SELECT word
+                            FROM dbo.SplitIntoWords(@section2)
+                            EXCEPT
+                            SELECT word
+                            FROM dbo.SplitIntoWords(@section1)
+                        ) AS diff2
+                    );
+
+                    -- Apply multipliers based on section type
+                    IF @sectionStart LIKE '%Vi har aftalt%'
+                        SET @changes = @changes * 2;
+                    ELSE IF @sectionStart LIKE '%Vi har i dag talt om%'
+                        SET @changes = @changes * 3;
+                    ELSE IF @sectionStart LIKE '%Din jobsøgning indtil nu%'
+                        SET @changes = @changes * 2;
+
+                    -- Add multiplier for significant differences
+                    DECLARE @count1 INT = (SELECT COUNT(*) FROM dbo.SplitIntoWords(@section1));
+                    DECLARE @count2 INT = (SELECT COUNT(*) FROM dbo.SplitIntoWords(@section2));
+                    IF @count1 > 2 * @count2 OR @count2 > 2 * @count1
+                        SET @changes = @changes * 2;
+
+                    RETURN @changes;
+                END;
+            `);
+            console.log('Word processing functions created successfully');
+        } catch (sqlErr) {
+            console.error('Error creating SQL functions:', sqlErr);
+            throw sqlErr;
+        }
     } catch (err) {
         console.error('Error connecting to the database:', err);
-        throw err; // Re-throw to prevent server from starting if DB connection fails
+        throw err;
     }
 }
 
@@ -420,7 +541,7 @@ app.get('/api/timeline-stats', async (req, res) => {
 
         const query = `
             WITH DailyStats AS (
-                SELECT 
+                SELECT
                     CAST(referat_godkendt_at AS DATE) as date,
                     COUNT(*) as total_count,
                     ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as positive_feedback,
@@ -439,21 +560,24 @@ app.get('/api/timeline-stats', async (req, res) => {
                         THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
                         ELSE NULL
                     END), 0) as avg_time_to_approval,
-                    SUM(CASE
-                        WHEN referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) as viHarAftalt,
-                    SUM(CASE
-                        WHEN referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) as viHarIDagTaltOm,
-                    SUM(CASE
-                        WHEN referat LIKE '%Din jobsøgning indtil nu%' AND ai_referat LIKE '%Din jobsøgning indtil nu%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) as dinJobsogningIndtilNu,
+                    SUM(dbo.CalculateSectionChanges(
+                        referat,
+                        ai_referat,
+                        'Vi har aftalt',
+                        'Vi har i dag talt om'
+                    )) as viHarAftalt,
+                    SUM(dbo.CalculateSectionChanges(
+                        referat,
+                        ai_referat,
+                        'Vi har i dag talt om',
+                        'Din jobsøgning indtil nu'
+                    )) as viHarIDagTaltOm,
+                    SUM(dbo.CalculateSectionChanges(
+                        referat,
+                        ai_referat,
+                        'Din jobsøgning indtil nu',
+                        'Andet'
+                    )) as dinJobsogningIndtilNu,
                     SUM(CASE
                         WHEN (referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%' AND referat = ai_referat)
                         OR (referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%' AND referat = ai_referat)
@@ -465,7 +589,7 @@ app.get('/api/timeline-stats', async (req, res) => {
                 ${whereClause ? 'AND ' + whereConditions.join(' AND ') : ''}
                 GROUP BY CAST(referat_godkendt_at AS DATE)
             )
-            SELECT 
+            SELECT
                 date,
                 total_count as totalCount,
                 positive_feedback as positiveFeedback,
