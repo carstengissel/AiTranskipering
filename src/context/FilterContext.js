@@ -27,11 +27,12 @@ export const FilterProvider = ({ children }) => {
         const hasChanges = Object.entries(newFilters).some(
           ([key, value]) => prev[key] !== value
         );
-        
+
         if (hasChanges) {
-          console.log('Updating filters:', { prev, newFilters });
+          console.log('FilterContext - updateFilters - Updating filters:', { prev, newFilters }); // DEBUG
           return { ...prev, ...newFilters };
         }
+        console.log('FilterContext - updateFilters - No changes in filters'); // DEBUG
         return prev;
       });
     });

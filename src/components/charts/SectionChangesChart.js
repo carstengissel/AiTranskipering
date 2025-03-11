@@ -42,7 +42,7 @@ const calculateYAxisProps = (data) => {
   };
 };
 
-const SectionChangesChart = memo(({ data }) => {
+const SectionChangesChart = memo(({ data, onChartClick }) => {
   const { filters } = useFilters();
   const { isPending } = useDashboard();
   const [timeScale, setTimeScale] = useState('weeks');
@@ -54,8 +54,8 @@ const SectionChangesChart = memo(({ data }) => {
   const yAxisProps = calculateYAxisProps(groupedData);
 
   const handleClick = (data) => {
-    if (data && data.payload) {
-      // onChartClick(data.payload);
+    if (data && data.payload && data.payload.date) {
+      onChartClick({ ...data.payload, timeScale });
     }
   };
 

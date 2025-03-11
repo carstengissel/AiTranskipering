@@ -1,656 +1,375 @@
-require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
-const sql = require('mssql');
 const cors = require('cors');
-const path = require('path');
+const sql = require('mssql');
+require('dotenv').config();
+
+// Database config
+const dbConfig = {
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  server: process.env.DB_SERVER,
+  database: process.env.DB_NAME,
+  options: {
+    encrypt: true,
+    trustServerCertificate: true
+  }
+};
 
 const app = express();
 
-// Force development mode
-process.env.NODE_ENV = 'development';
-
-// Debug environment variables
-console.log('Environment variables:', {
-    NODE_ENV: process.env.NODE_ENV,
-    DB_USER: process.env.DB_USER,
-    DB_SERVER: process.env.DB_SERVER,
-    DB_NAME: process.env.DB_NAME,
-    DEV_FRONTEND_PORT: process.env.DEV_FRONTEND_PORT,
-    DEV_FRONTEND_PORT_ALT: process.env.DEV_FRONTEND_PORT_ALT,
-    PORT: process.env.PORT
-});
-
-// Configure CORS based on environment
-const isDevelopment = process.env.NODE_ENV === 'development';
-const corsOrigins = isDevelopment 
-    ? [
-        'http://localhost:83',
-        'http://localhost:3002',
-        'http://localhost:3000',
-        'http://localhost:3003'
-      ]
-    : [process.env.PROD_URL];
-
-console.log(`Running in ${isDevelopment ? 'development' : 'production'} mode`);
-console.log('CORS origins:', corsOrigins);
-
-app.use(cors({
-    origin: corsOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'build')));
-
-// Database configuration from environment variables
-const config = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
-    options: {
-        encrypt: true,
-        trustServerCertificate: true
-    }
+// CORS setup
+const corsOptions = {
+  origin: [
+    'http://localhost:83',
+    'http://localhost:3002',
+    'http://localhost:3000',
+    'http://localhost:3003'
+  ],
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 
-console.log('Database config:', {
-    ...config,
-    password: '***' // Hide password in logs
-});
+app.use(cors(corsOptions));
+app.use(express.json());
 
-async function connectToDatabase() {
-    try {
-        await sql.connect(config);
-        console.log('Connected to the database');
-        
-        console.log('Migrating word processing functions...');
-        try {
-            console.log('Creating SQL functions...');
-            
-            // Drop existing functions
-            await sql.query(`
-                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'FN' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'CalculateSectionChanges')
-                    DROP FUNCTION [dbo].[CalculateSectionChanges];
-            `);
+// Database connection
+let pool;
+const connectToDatabase = async () => {
+  try {
+    console.log('Connecting to database...');
+    pool = await sql.connect(dbConfig);
+    console.log('Connected to database');
+  } catch (err) {
+    console.error('Database connection failed:', err);
+    throw err;
+  }
+};
 
-            await sql.query(`
-                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'FN' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'ExtractSection')
-                    DROP FUNCTION [dbo].[ExtractSection];
-            `);
-
-            await sql.query(`
-                IF EXISTS (SELECT * FROM sys.objects WHERE type = 'IF' AND SCHEMA_NAME(schema_id) = 'dbo' AND name = 'SplitIntoWords')
-                    DROP FUNCTION [dbo].[SplitIntoWords];
-            `);
-
-            // Create functions one by one
-            await sql.query(`
-                CREATE FUNCTION [dbo].[SplitIntoWords]
-                (
-                    @text NVARCHAR(MAX)
-                )
-                RETURNS TABLE
-                AS
-                RETURN
-                    SELECT
-                        LTRIM(RTRIM(value)) AS word
-                    FROM STRING_SPLIT(REPLACE(REPLACE(@text, CHAR(13), ' '), CHAR(10), ' '), ' ')
-                    WHERE LTRIM(RTRIM(value)) != '';
-            `);
-
-            await sql.query(`
-                CREATE FUNCTION [dbo].[ExtractSection]
-                (
-                    @text NVARCHAR(MAX),
-                    @startMarker NVARCHAR(100),
-                    @endMarker NVARCHAR(100)
-                )
-                RETURNS NVARCHAR(MAX)
-                AS
-                BEGIN
-                    DECLARE @startPos INT = CHARINDEX(@startMarker, @text);
-                    DECLARE @endPos INT;
-                    
-                    IF @startPos = 0
-                        RETURN '';
-                    
-                    SET @startPos = @startPos + LEN(@startMarker);
-                    SET @endPos = CHARINDEX(@endMarker, @text, @startPos);
-                    
-                    IF @endPos = 0
-                        SET @endPos = LEN(@text) + 1;
-                    
-                    RETURN LTRIM(RTRIM(SUBSTRING(@text, @startPos, @endPos - @startPos)));
-                END;
-            `);
-
-            await sql.query(`
-                CREATE FUNCTION [dbo].[CalculateSectionChanges]
-                (
-                    @text1 NVARCHAR(MAX),
-                    @text2 NVARCHAR(MAX),
-                    @sectionStart NVARCHAR(100),
-                    @sectionEnd NVARCHAR(100)
-                )
-                RETURNS INT
-                AS
-                BEGIN
-                    DECLARE @section1 NVARCHAR(MAX) = [dbo].[ExtractSection](@text1, @sectionStart, @sectionEnd);
-                    DECLARE @section2 NVARCHAR(MAX) = [dbo].[ExtractSection](@text2, @sectionStart, @sectionEnd);
-                    
-                    IF @section1 = '' OR @section2 = ''
-                        RETURN 0;
-
-                    DECLARE @changes INT = (
-                        SELECT COUNT(*)
-                        FROM (
-                            SELECT word
-                            FROM dbo.SplitIntoWords(@section1)
-                            EXCEPT
-                            SELECT word
-                            FROM dbo.SplitIntoWords(@section2)
-                        ) AS diff1
-                    ) + (
-                        SELECT COUNT(*)
-                        FROM (
-                            SELECT word
-                            FROM dbo.SplitIntoWords(@section2)
-                            EXCEPT
-                            SELECT word
-                            FROM dbo.SplitIntoWords(@section1)
-                        ) AS diff2
-                    );
-
-                    -- Apply multipliers based on section type
-                    IF @sectionStart LIKE '%Vi har aftalt%'
-                        SET @changes = @changes * 2;
-                    ELSE IF @sectionStart LIKE '%Vi har i dag talt om%'
-                        SET @changes = @changes * 3;
-                    ELSE IF @sectionStart LIKE '%Din jobsøgning indtil nu%'
-                        SET @changes = @changes * 2;
-
-                    -- Add multiplier for significant differences
-                    DECLARE @count1 INT = (SELECT COUNT(*) FROM dbo.SplitIntoWords(@section1));
-                    DECLARE @count2 INT = (SELECT COUNT(*) FROM dbo.SplitIntoWords(@section2));
-                    IF @count1 > 2 * @count2 OR @count2 > 2 * @count1
-                        SET @changes = @changes * 2;
-
-                    RETURN @changes;
-                END;
-            `);
-            console.log('Word processing functions created successfully');
-        } catch (sqlErr) {
-            console.error('Error creating SQL functions:', sqlErr);
-            throw sqlErr;
-        }
-    } catch (err) {
-        console.error('Error connecting to the database:', err);
-        throw err;
-    }
-}
-
-// Helper function to parse and format date for SQL
-function formatDateForSQL(dateString) {
-    try {
-        console.log('Formatting date input:', dateString);
-       
-        // Handle DD.MM.YYYY format (European format)
-        if (typeof dateString === 'string' && dateString.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-            // Example: input "04.11.2024" should become "2024-11-04"
-            const parts = dateString.split('.');
-            const day = parts[0];    // "04"
-            const month = parts[1];  // "11"
-            const year = parts[2];   // "2024"
-            
-            // For European format DD.MM.YYYY to SQL YYYY-MM-DD
-            const formatted = `${year}-${month}-${day}`;
-            
-            console.log('Input date:', dateString, '(DD.MM.YYYY)');
-            console.log('Parsed parts:', { day, month, year });
-            console.log('Final SQL date:', formatted, '(YYYY-MM-DD)');
-            
-            return formatted;
-        }
-
-        // If already in YYYY-MM-DD format, return as is
-        if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            return dateString;
-        }
-
-        console.error('Could not parse date:', dateString);
-        return null;
-    } catch (err) {
-        console.error('Error formatting date:', err);
-        return null;
-    }
-}
-
-// Helper function to build date filter condition
-function buildDateFilterCondition(date, type = 'exact', field = 'ai_referat_recieved_at') {
-    // If no date is provided, return null (no filter)
-    if (!date) {
-        console.log('No date provided for filter condition');
-        return null;
-    }
-
-    console.log('Building date filter condition - Input:', { date, type, field });
-    const formattedDate = formatDateForSQL(date);
-    if (!formattedDate) return null;
-
-    // Add debug logging
-    console.log(`Building date filter condition - Date: ${date}, Type: ${type}, Formatted: ${formattedDate}, Field: ${field}`);
-
-    let condition;
-    switch (type) {
-        case 'start':
-            condition = `cast(${field} as date) >= '${formattedDate}'`;
-            break;
-        case 'end':
-            condition = `cast(${field} as date) <= '${formattedDate}'`;
-            break;
-        case 'exact':
-        default:
-            condition = `cast(${field} as date) = '${formattedDate}'`;
-            break;
-    }
-
-    console.log('Generated SQL condition:', condition);
-    return condition;
-}
-
-// Endpoint to get data from ai_statistik (tidligere samtale_transcription_statisics)
-app.get('/api/samind_referat', async (req, res) => {
-    try {
-        const { startDate, endDate, type } = req.query;
-        console.log('Raw request query parameters:', req.query);
-        console.log('Fetching samtale data...', { startDate, endDate, type });
-        const whereConditions = [];
-        
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'referat_godkendt_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'referat_godkendt_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (type && type !== 'all') {
-            whereConditions.push(`samtyp_type = '${type}'`);
-        }
-
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
-
-        // Log query parameters
-        console.log('Query parameters:', {
-            startDate: startDate ? formatDateForSQL(startDate) : 'null',
-            endDate: endDate ? formatDateForSQL(endDate) : 'null',
-            whereClause: whereClause || 'none'
-        });
-
-        const query = `
-            SELECT 
-                referat,
-                ai_referat as aiReferat,
-                feedback,
-                feedback_tekst as feedbackTekst,
-                samtyp_type,
-                regenerated,
-                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
-                DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
-                transcription_recieved_at,
-                ai_referat_recieved_at,
-                referat_started_at,
-                referat_godkendt_at
-            FROM ai_statistik WITH (NOLOCK)
-            ${whereClause}
-            ORDER BY referat_godkendt_at DESC`;
-
-        console.log('Executing query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records from ai_statistik`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching data:', err);
-        res.status(500).json({ error: 'An error occurred while fetching data' });
-    }
-});
-
-// Endpoint to get AI referat data
-app.get('/api/samind_ai_referat', async (req, res) => {
-    try {
-        const { startDate, endDate, type } = req.query;
-        console.log('Raw request query parameters:', req.query);
-        console.log('Fetching AI referat data...', { startDate, endDate, type });
-        const whereConditions = [];
-        
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'ai_referat_recieved_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'ai_referat_recieved_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (type && type !== 'all') {
-            whereConditions.push(`samtyp_type = '${type}'`);
-        }
-
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
-
-        const query = `
-            SELECT 
-                ai_referat,
-                samtyp_type,
-                feedback,
-                feedback_tekst as feedbackTekst,
-                regenerated,
-                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
-                DATEDIFF(MINUTE, ai_referat_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
-                transcription_recieved_at,
-                ai_referat_recieved_at,
-                referat_started_at,
-                referat_godkendt_at
-            FROM ai_statistik WITH (NOLOCK)
-            ${whereClause}
-            ORDER BY ai_referat_recieved_at DESC`;
-
-        console.log('Executing query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching AI referat data:', err);
-        res.status(500).json({ error: 'An error occurred while fetching data' });
-    }
-});
-
-// Endpoint to get samtaletyper
-app.get('/api/samtaletyper', async (req, res) => {
-    try {
-        console.log('Fetching samtaletyper...');
-        const result = await sql.query`
-            SELECT DISTINCT 
-                samtyp_type
-            FROM ai_statistik WITH (NOLOCK)
-            WHERE samtyp_type IS NOT NULL
-            ORDER BY samtyp_type
-        `;
-        console.log(`Fetched ${result.recordset.length} distinct conversation types`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching conversation types:', err);
-        res.status(500).json({ error: 'An error occurred while fetching conversation types' });
-    }
-});
-
-// Endpoint to get KPI statistics
+// KPI stats endpoint
 app.get('/api/kpi-stats', async (req, res) => {
-    try {
-        const { startDate, endDate } = req.query;
-        console.log('Fetching KPI statistics...', { startDate, endDate });
-        
-        const whereConditions = [];
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'referat_godkendt_at');
-            if (dateCondition) whereConditions.push(dateCondition);
-        }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'referat_godkendt_at');
-            if (dateCondition) whereConditions.push(dateCondition);
-        }
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching KPI stats...');
 
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
+    const result = await pool.request().query(`
+      SELECT 
+        Referat,
+        AI_Referat,
+        Feedback,
+        Transcription_Recieved_At,
+        AI_Referat_Recieved_At,
+        Referat_Godkendt_At,
+        Samtyp_Type
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE Referat_Godkendt_At IS NOT NULL
+    `);
 
-        const query = `
-            WITH TimeStats AS (
-                SELECT 
-                    ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as thumbs_up,
-                    ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as thumbs_down,
-                    ISNULL(AVG(CASE
-                        WHEN transcription_recieved_at IS NOT NULL AND ai_referat_recieved_at IS NOT NULL
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) > 0
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) < 1000
-                        THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) AS FLOAT)
-                        ELSE NULL
-                    END), 0) as avg_time_to_ai_report,
-                    ISNULL(AVG(CASE
-                        WHEN transcription_recieved_at IS NOT NULL AND referat_godkendt_at IS NOT NULL
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) > 0
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) < 1000
-                        THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
-                        ELSE NULL
-                    END), 0) as avg_time_to_approval,
-                    COUNT(*) as total_conversations,
-                    AVG(CASE
-                        WHEN referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) * 100 as vi_har_aftalt_change_rate,
-                    AVG(CASE
-                        WHEN referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) * 100 as vi_har_talt_om_change_rate,
-                    AVG(CASE
-                        WHEN referat LIKE '%Din jobsøgning indtil nu%' AND ai_referat LIKE '%Din jobsøgning indtil nu%'
-                        AND referat != ai_referat
-                        THEN 1 ELSE 0
-                    END) * 100 as jobsogning_change_rate
-                FROM ai_statistik WITH (NOLOCK)
-                ${whereClause}
-            ),
-            TopTypesJson AS (
-                SELECT 
-                    (
-                        SELECT TOP 5 
-                            samtyp_type,
-                            COUNT(*) as count
-                        FROM ai_statistik WITH (NOLOCK)
-                        WHERE samtyp_type IS NOT NULL 
-                        ${whereClause ? 'AND ' + whereConditions.join(' AND ') : ''}
-                        GROUP BY samtyp_type
-                        ORDER BY count DESC
-                        FOR JSON PATH
-                    ) as json_data
-            )
-            SELECT 
-                t.*,
-                ISNULL(j.json_data, '[]') as top_conversation_types
-            FROM TimeStats t
-            CROSS JOIN TopTypesJson j
-        `;
+    console.log(`Found ${result.recordset.length} records`);
 
-        console.log('Executing KPI query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-        
-        // Format the response
-        const stats = result.recordset[0];
-        let mostFrequentType = "N/A";
-        let topTypes = [];
-        
-        try {
-            if (stats.top_conversation_types) {
-                topTypes = JSON.parse(stats.top_conversation_types);
-                mostFrequentType = topTypes && topTypes[0] ? topTypes[0].samtyp_type : "N/A";
-            }
-        } catch (jsonError) {
-            console.error('Error parsing top conversation types:', jsonError);
-            mostFrequentType = "N/A";
-        }
+    const stats = {
+      positiveFeedback: result.recordset.filter(r => r.Feedback === '1').length,
+      negativeFeedback: result.recordset.filter(r => r.Feedback === '-1').length,
+      totalCount: result.recordset.length,
+      avgTimeToAiReport: calculateAvgTime(result.recordset, 'Transcription_Recieved_At', 'AI_Referat_Recieved_At'),
+      avgTimeToApproval: calculateAvgTime(result.recordset, 'Transcription_Recieved_At', 'Referat_Godkendt_At'),
+      mostFrequentType: calculateMostFrequentType(result.recordset)
+    };
 
-        const response = {
-            positiveFeedback: stats.thumbs_up || 0,
-            negativeFeedback: stats.thumbs_down || 0,
-            avgTimeToAiReport: Math.round(stats.avg_time_to_ai_report || 0),
-            avgTimeToApproval: Math.round(stats.avg_time_to_approval || 0),
-            totalCount: stats.total_conversations || 0,
-            mostFrequentType,
-            topTypes,
-            viHarAftaltChangeRate: Math.round(stats.vi_har_aftalt_change_rate || 0),
-            viHarTaltOmChangeRate: Math.round(stats.vi_har_talt_om_change_rate || 0),
-            jobsogningChangeRate: Math.round(stats.jobsogning_change_rate || 0)
-        };
-
-        console.log('KPI stats calculated:', response);
-        res.json(response);
-    } catch (err) {
-        console.error('Error fetching KPI statistics:', err);
-        res.status(500).json({ error: 'An error occurred while fetching KPI statistics', details: err.message });
-    }
+    res.json(stats);
+  } catch (err) {
+    console.error('Error in KPI stats:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
 });
 
-// Endpoint to get timeline statistics
+// Timeline stats endpoint
 app.get('/api/timeline-stats', async (req, res) => {
-    try {
-        const { startDate, endDate, interval = 'day' } = req.query;
-        console.log('Fetching timeline statistics...', { startDate, endDate, interval });
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching timeline stats...');
 
-        const whereConditions = [];
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'referat_godkendt_at');
-            if (dateCondition) whereConditions.push(dateCondition);
+    const result = await pool.request().query(`
+      SELECT 
+        Referat,
+        AI_Referat,
+        Referat_Godkendt_At,
+        Feedback,
+        Transcription_Recieved_At,
+        AI_Referat_Recieved_At
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE Referat_Godkendt_At IS NOT NULL
+    `);
+
+    console.log(`Found ${result.recordset.length} records`);
+
+    // Gruppér efter dato
+    const referatsByDate = result.recordset.reduce((acc, row) => {
+      const date = new Date(row.Referat_Godkendt_At).toISOString().split('T')[0];
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(row);
+      return acc;
+    }, {});
+
+    // Beregn statistik for hver dato
+    const processedData = Object.entries(referatsByDate).map(([date, dayReferater]) => {
+      const stats = {
+        date,
+        totalCount: dayReferater.length,
+        viHarAftalt: 0,
+        viHarIDagTaltOm: 0,
+        dinJobsogningIndtilNu: 0,
+        positiveFeedback: dayReferater.filter(r => r.Feedback === '1').length,
+        negativeFeedback: dayReferater.filter(r => r.Feedback === '-1').length,
+        avgTimeToAiReport: calculateAvgTime(dayReferater, 'Transcription_Recieved_At', 'AI_Referat_Recieved_At'),
+        avgTimeToApproval: calculateAvgTime(dayReferater, 'Transcription_Recieved_At', 'Referat_Godkendt_At')
+      };
+
+      // Beregn sektionsændringer for hver referat
+      dayReferater.forEach(referat => {
+        try {
+          const aiParsed = parseReferat(referat.AI_Referat);
+          const humanParsed = parseReferat(referat.Referat);
+
+          ['viHarAftalt', 'viHarIDagTaltOm', 'dinJobsogningIndtilNu'].forEach(section => {
+            const aiText = aiParsed[section].join('\n');
+            const humanText = humanParsed[section].join('\n');
+
+            if (humanText.trim()) {
+              const aiChars = Array.from(aiText);
+              const humanChars = Array.from(humanText);
+
+              let changes = 0;
+              let consecutiveChanges = 0;
+              let i = 0;
+              let j = 0;
+
+              while (i < humanChars.length || j < aiChars.length) {
+                if (i >= humanChars.length) {
+                  changes += aiChars.length - j;
+                  break;
+                }
+                if (j >= aiChars.length) {
+                  changes += humanChars.length - i;
+                  break;
+                }
+
+                if (humanChars[i] !== aiChars[j]) {
+                  consecutiveChanges++;
+                  changes++;
+                  i++;
+                  j++;
+                } else {
+                  if (consecutiveChanges < 3) {
+                    changes -= consecutiveChanges;
+                  }
+                  consecutiveChanges = 0;
+                  i++;
+                  j++;
+                }
+              }
+
+              const sectionChanges = Math.min(100, Math.round((changes / humanChars.length) * 25));
+              stats[section] += sectionChanges;
+            }
+          });
+        } catch (err) {
+          console.error('Error processing referat:', err);
         }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'referat_godkendt_at');
-            if (dateCondition) whereConditions.push(dateCondition);
-        }
+      });
 
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
+      // Beregn gennemsnit
+      stats.viHarAftalt = Math.round(stats.viHarAftalt / dayReferater.length);
+      stats.viHarIDagTaltOm = Math.round(stats.viHarIDagTaltOm / dayReferater.length);
+      stats.dinJobsogningIndtilNu = Math.round(stats.dinJobsogningIndtilNu / dayReferater.length);
 
-        const query = `
-            WITH DailyStats AS (
-                SELECT
-                    CAST(referat_godkendt_at AS DATE) as date,
-                    COUNT(*) as total_count,
-                    ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as positive_feedback,
-                    ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as negative_feedback,
-                    ISNULL(AVG(CASE
-                        WHEN transcription_recieved_at IS NOT NULL AND ai_referat_recieved_at IS NOT NULL
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) > 0
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) < 1000
-                        THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) AS FLOAT)
-                        ELSE NULL
-                    END), 0) as avg_time_to_ai_report,
-                    ISNULL(AVG(CASE
-                        WHEN transcription_recieved_at IS NOT NULL AND referat_godkendt_at IS NOT NULL
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) > 0
-                        AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) < 1000
-                        THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
-                        ELSE NULL
-                    END), 0) as avg_time_to_approval,
-                    SUM(dbo.CalculateSectionChanges(
-                        referat,
-                        ai_referat,
-                        'Vi har aftalt',
-                        'Vi har i dag talt om'
-                    )) as viHarAftalt,
-                    SUM(dbo.CalculateSectionChanges(
-                        referat,
-                        ai_referat,
-                        'Vi har i dag talt om',
-                        'Din jobsøgning indtil nu'
-                    )) as viHarIDagTaltOm,
-                    SUM(dbo.CalculateSectionChanges(
-                        referat,
-                        ai_referat,
-                        'Din jobsøgning indtil nu',
-                        'Andet'
-                    )) as dinJobsogningIndtilNu,
-                    SUM(CASE
-                        WHEN (referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%' AND referat = ai_referat)
-                        OR (referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%' AND referat = ai_referat)
-                        OR (referat LIKE '%Din jobsøgning indtil nu%' AND ai_referat LIKE '%Din jobsøgning indtil nu%' AND referat = ai_referat)
-                        THEN 1 ELSE 0
-                    END) as uaendredeSektioner
-                FROM ai_statistik WITH (NOLOCK)
-                WHERE referat_godkendt_at IS NOT NULL
-                ${whereClause ? 'AND ' + whereConditions.join(' AND ') : ''}
-                GROUP BY CAST(referat_godkendt_at AS DATE)
-            )
-            SELECT
-                date,
-                total_count as totalCount,
-                positive_feedback as positiveFeedback,
-                negative_feedback as negativeFeedback,
-                avg_time_to_ai_report as avgTimeToAiReport,
-                avg_time_to_approval as avgTimeToApproval,
-                viHarAftalt,
-                viHarIDagTaltOm,
-                dinJobsogningIndtilNu,
-                uaendredeSektioner
-            FROM DailyStats
-            ORDER BY date
-        `;
-
-        console.log('Executing timeline query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-
-        // Log raw results
-        console.log('Raw SQL result:', result.recordset);
-
-        // Format the response
-        const timelineData = result.recordset.map(row => ({
-            date: row.date,
-            totalCount: row.totalCount || 0,
-            positiveFeedback: row.positiveFeedback || 0,
-            negativeFeedback: row.negativeFeedback || 0,
-            avgTimeToAiReport: Math.round(row.avgTimeToAiReport || 0),
-            avgTimeToApproval: Math.round(row.avgTimeToApproval || 0),
-            viHarAftalt: row.viHarAftalt || 0,
-            viHarIDagTaltOm: row.viHarIDagTaltOm || 0,
-            dinJobsogningIndtilNu: row.dinJobsogningIndtilNu || 0,
-            uaendredeSektioner: row.uaendredeSektioner || 0,
-            count: row.totalCount || 0
-        }));
-
-        console.log(`Timeline stats calculated with ${timelineData.length} data points`);
-        console.log('First data point:', timelineData[0]);
-        console.log('Last data point:', timelineData[timelineData.length - 1]);
-
-        res.json(timelineData);
-    } catch (err) {
-        console.error('Error fetching timeline statistics:', err);
-        res.status(500).json({ error: 'An error occurred while fetching timeline statistics' });
-    }
-});
-
-// Catch-all handler
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'build', 'index.html'));
-});
-
-// Use PORT from environment variable, defaulting to 3002
-const PORT = process.env.PORT || 3002;
-
-connectToDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-        console.log(`Frontend should be running on port 83`);
+      return stats;
     });
+
+    // Sortér efter dato
+    processedData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    res.json(processedData);
+  } catch (err) {
+    console.error('Error in timeline stats:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Samind referat endpoint
+app.get('/api/samind_referat', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching samind referat...');
+
+    const result = await pool.request().query(`
+      SELECT TOP 100
+        lbnr,
+        Referat,
+        AI_Referat,
+        Feedback,
+        Referat_Godkendt_At,
+        Transcription_Recieved_At,
+        AI_Referat_Recieved_At,
+        Referat_Started_At,
+        Samtyp_Type,
+        Feedback as feedback_beskrivelse,
+        Regenerated
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE Referat_Godkendt_At IS NOT NULL
+      ORDER BY Referat_Godkendt_At DESC
+    `);
+
+    const referater = result.recordset.map(row => {
+      // Beregn tider
+      const tidTilGodkendelse = row.Referat_Started_At && row.Referat_Godkendt_At
+        ? Math.round((new Date(row.Referat_Godkendt_At) - new Date(row.Referat_Started_At)) / (1000 * 60))
+        : null;
+
+      const tidTilAIReferat = row.Transcription_Recieved_At && row.AI_Referat_Recieved_At
+        ? Math.round((new Date(row.AI_Referat_Recieved_At) - new Date(row.Transcription_Recieved_At)) / (1000 * 60))
+        : null;
+
+      return {
+        id: row.lbnr,
+        samind_lbnr: row.lbnr, // For bagudkompatibilitet
+        referat: row.Referat,
+        aiReferat: row.AI_Referat,
+        feedback: row.Feedback,
+        referat_godkendt_at: row.Referat_Godkendt_At,
+        transcription_recieved_at: row.Transcription_Recieved_At,
+        ai_referat_recieved_at: row.AI_Referat_Recieved_At,
+        referat_started_at: row.Referat_Started_At,
+        samtaletype: row.Samtyp_Type,
+        feedback_beskrivelse: row.feedback_beskrivelse,
+        regenerer_dato: row.Regenerated,
+        tid_til_godkendelse: tidTilGodkendelse,
+        tid_til_ai_referat: tidTilAIReferat
+      };
+    });
+
+    res.json(referater);
+  } catch (err) {
+    console.error('Error fetching samind referat:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Hjælpefunktioner
+function parseReferat(referat) {
+  if (!referat) {
+    return {
+      viHarAftalt: [],
+      viHarIDagTaltOm: [],
+      dinJobsogningIndtilNu: [],
+      andet: []
+    };
+  }
+
+  const sections = {
+    viHarAftalt: [],
+    viHarIDagTaltOm: [],
+    dinJobsogningIndtilNu: [],
+    andet: []
+  };
+
+  const lines = referat.split('\n');
+  let currentSection = 'andet';
+  let currentText = '';
+
+  for (const line of lines) {
+    if (line.includes('Vi har aftalt')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarAftalt';
+      currentText = '';
+    } else if (line.includes('Vi har i dag talt om')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarIDagTaltOm';
+      currentText = '';
+    } else if (line.includes('Din jobsøgning indtil nu')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'dinJobsogningIndtilNu';
+      currentText = '';
+    } else if (line.trim()) {
+      if (line.trim().startsWith('- ')) {
+        if (currentText.trim()) {
+          sections[currentSection].push(currentText.trim());
+          currentText = '';
+        }
+        sections[currentSection].push(line.trim());
+      } else {
+        currentText += (currentText ? ' ' : '') + line.trim();
+      }
+    }
+  }
+
+  if (currentText.trim()) {
+    sections[currentSection].push(currentText.trim());
+  }
+
+  return sections;
+}
+
+function calculateAvgTime(referater, startField, endField) {
+  try {
+    const validTimes = referater.filter(r => 
+      r[startField] && r[endField] && 
+      new Date(r[endField]) > new Date(r[startField])
+    );
+
+    if (validTimes.length === 0) return 0;
+
+    const totalMinutes = validTimes.reduce((sum, r) => {
+      const minutes = Math.floor(
+        (new Date(r[endField]) - new Date(r[startField])) / (1000 * 60)
+      );
+      return sum + (minutes > 0 && minutes < 1000 ? minutes : 0);
+    }, 0);
+
+    return Math.round(totalMinutes / validTimes.length);
+  } catch (err) {
+    console.error('Error calculating average time:', err);
+    return 0;
+  }
+}
+
+function calculateMostFrequentType(referater) {
+  try {
+    const typeCounts = referater.reduce((acc, r) => {
+      if (r.Samtyp_Type) {
+        acc[r.Samtyp_Type] = (acc[r.Samtyp_Type] || 0) + 1;
+      }
+      return acc;
+    }, {});
+
+    let mostFrequent = { type: 'N/A', count: 0 };
+    Object.entries(typeCounts).forEach(([type, count]) => {
+      if (count > mostFrequent.count) {
+        mostFrequent = { type, count };
+      }
+    });
+
+    return mostFrequent.type;
+  } catch (err) {
+    console.error('Error calculating most frequent type:', err);
+    return 'N/A';
+  }
+}
+
+// Start server
+connectToDatabase().then(() => {
+  const port = process.env.PORT || 3002;
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+    console.log('Frontend should be running on port 83');
+  });
 }).catch(err => {
-    console.error('Failed to start server due to database connection error:', err);
-    process.exit(1);
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });

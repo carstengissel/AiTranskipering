@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDashboard } from '../../context/DashboardContext';
 import { useFilters } from '../../context/FilterContext';
 import DashboardHeader from './DashboardHeader';
@@ -11,21 +12,12 @@ import FeedbackChart from '../charts/FeedbackChart';
 import SectionChangesChart from '../charts/SectionChangesChart';
 import ConversationTypesChart from '../charts/ConversationTypesChart';
 import AverageSectionChangesChart from '../charts/AverageSectionChangesChart';
-import { 
-  startOfDay, 
-  endOfDay, 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfQuarter, 
-  endOfQuarter, 
-  startOfYear, 
-  endOfYear 
-} from 'date-fns';
+import { formatDateForUrl } from '../conversation/utils/dateUtils';
+import { startOfDay, endOfDay } from 'date-fns';
 
 const SamtalerStatusDashboard = () => {
-  const { 
+  const navigate = useNavigate();
+  const {
     statistics,
     isLoading,
     isPending,
@@ -63,69 +55,68 @@ const SamtalerStatusDashboard = () => {
     };
 
     fetchData();
-  }, [currentFilters, fetchDashboardData]);
+  }, [currentFilters, fetchDashboardData, filters]);
 
-  const getDateRange = (date, timeScale) => {
-    const dateObj = new Date(date);
-    switch (timeScale) {
-      case 'days':
-        return {
-          start: startOfDay(dateObj),
-          end: endOfDay(dateObj)
-        };
-      case 'weeks':
-        return {
-          start: startOfWeek(dateObj, { weekStartsOn: 1 }),
-          end: endOfWeek(dateObj, { weekStartsOn: 1 })
-        };
-      case 'months':
-        return {
-          start: startOfMonth(dateObj),
-          end: endOfMonth(dateObj)
-        };
-      case 'quarters':
-        return {
-          start: startOfQuarter(dateObj),
-          end: endOfQuarter(dateObj)
-        };
-      case 'years':
-        return {
-          start: startOfYear(dateObj),
-          end: endOfYear(dateObj)
-        };
-      default:
-        return {
-          start: startOfDay(dateObj),
-          end: endOfDay(dateObj)
-        };
-    }
-  };
-
-  const handleChartClick = useCallback(async (data, section = null) => {
+  const handleChartClick = useCallback((data) => {
     if (!data || !data.date) return;
-    
-    try {
-      // Parse the date string to ensure it's valid
-      const date = new Date(data.date);
-      if (isNaN(date.getTime())) return; // Skip if date is invalid
 
-      // Get the time scale from the chart's data
-      const timeScale = data.timeScale || 'days';
-      
-      // Get the date range based on the time scale
-      const { start, end } = getDateRange(date, timeScale);
-      
-      // Update filters with the date range
-      updateFilters({
-        startDate: start,
-        endDate: end,
-        section: section || null,
-        date: data.date
-      });
+    try {
+      // Get start and end of the day
+      const date = new Date(data.date);
+      const startDate = startOfDay(date);
+      const endDate = endOfDay(date);
+
+      // Format dates for URL
+      const formattedStartDate = formatDateForUrl(startDate);
+      const formattedEndDate = formatDateForUrl(endDate);
+
+      if (!formattedStartDate || !formattedEndDate) return;
+
+      console.log("SamtalerStatusDashboard - handleChartClick - data.date:", data.date, "formattedStartDate:", formattedStartDate, "formattedEndDate:", formattedEndDate); // DEBUG
+
+      // Create URL parameters
+      const searchParams = new URLSearchParams();
+      searchParams.set('startDate', formattedStartDate);
+      searchParams.set('endDate', formattedEndDate);
+
+      // Navigate to conversation summary with date filter
+      // const url = `/conversation-summary?${searchParams.toString()}`;
+      // console.log("SamtalerStatusDashboard - handleChartClick - Navigating to URL:", url); // DEBUG
+      // navigate(url);
+
+      // Update filters in context
+      const newFilters = {
+        startDate: formattedStartDate,
+        endDate: formattedEndDate,
+        section: null, // Reset section when selecting new date
+        conversationType: 'all' // Reset conversation type when selecting new date
+      };
+      console.log("SamtalerStatusDashboard - handleChartClick - updateFilters:", newFilters); // DEBUG
+      updateFilters(newFilters);
     } catch (error) {
       console.error('Error handling chart click:', error);
     }
-  }, [updateFilters]);
+  }, [updateFilters, navigate]);
+  const handleVisSamtalerClick = useCallback(() => {
+    const { filters } = useFilters();
+    const { startDate, endDate, section, conversationType } = filters;
+    
+    // Format dates for URL
+    const formattedStartDate = formatDateForUrl(startDate);
+    const formattedEndDate = formatDateForUrl(endDate);
+
+    // Create URL parameters
+    const searchParams = new URLSearchParams();
+    if (formattedStartDate) searchParams.set('startDate', formattedStartDate);
+    if (formattedEndDate) searchParams.set('endDate', formattedEndDate);
+    if (section) searchParams.set('section', section);
+    if (conversationType && conversationType !== 'all') searchParams.set('type', conversationType);
+
+    // Navigate to conversation summary with filters
+    const url = `/conversation-summary?${searchParams.toString()}`;
+    console.log("SamtalerStatusDashboard - handleVisSamtalerClick - Navigating to URL:", url); // DEBUG
+    navigate(url);
+  }, [filters, navigate, formatDateForUrl]);
 
   // Use combined loading state for smoother transitions
   const isUpdating = isLoading || isPending;

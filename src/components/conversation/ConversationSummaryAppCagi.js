@@ -40,14 +40,14 @@ const ConversationSummaryApp = () => {
       date: searchParams.get('date')
     };
 
-    console.log('Raw filters from URL:', raw);
+    console.log('ConversationSummaryAppCagi - useMemo - Raw filters from URL:', raw); // DEBUG
 
     // Parse dates and format them consistently
     const startDate = parseDateFromUrl(raw.startDate);
     const endDate = parseDateFromUrl(raw.endDate);
     const date = parseDateFromUrl(raw.date);
 
-    console.log('Parsed dates:', { startDate, endDate, date });
+    console.log('ConversationSummaryAppCagi - useMemo - Parsed dates:', { startDate, endDate, date }); // DEBUG
 
     const active = {
       startDate: startDate,
@@ -57,7 +57,7 @@ const ConversationSummaryApp = () => {
       date: date
     };
 
-    console.log('Active filters:', active);
+    console.log('ConversationSummaryAppCagi - useMemo - Active filters:', active); // DEBUG
     return { rawFilters: raw, activeFilters: active };
   }, [location.search]);
 
@@ -67,13 +67,13 @@ const ConversationSummaryApp = () => {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log('Fetching data with filters:', activeFilters);
-      
+      console.log('ConversationSummaryAppCagi - fetchData - Fetching data with filters:', activeFilters); // DEBUG
+
       // Convert dates to YYYY-MM-DD format for the backend
       const formatDateForBackend = (dateStr) => {
         if (!dateStr) return null;
@@ -81,17 +81,21 @@ const ConversationSummaryApp = () => {
         return `${year}-${month}-${day}`;
       };
 
+      const backendParams = {
+        startDate: formatDateForBackend(activeFilters.startDate),
+        endDate: formatDateForBackend(activeFilters.endDate),
+        date: formatDateForBackend(activeFilters.date),
+        type: activeFilters.type !== 'all' ? activeFilters.type : undefined
+      };
+      
+      console.log('ConversationSummaryAppCagi - fetchData - Backend API params:', backendParams); // DEBUG
+
       const response = await axios.get('/api/samind_referat', {
-        params: {
-          startDate: formatDateForBackend(activeFilters.startDate),
-          endDate: formatDateForBackend(activeFilters.endDate),
-          date: formatDateForBackend(activeFilters.date),
-          type: activeFilters.type !== 'all' ? activeFilters.type : undefined
-        },
+        params: backendParams,
         signal: abortControllerRef.current.signal
       });
 
-      console.log('API response:', response.data);
+      console.log('ConversationSummaryAppCagi - fetchData - API response:', response.data); // DEBUG
 
       if (!Array.isArray(response.data)) {
         console.error('Invalid API response format:', response.data);
@@ -115,7 +119,13 @@ const ConversationSummaryApp = () => {
         return dateB.getTime() - dateA.getTime();
       });
 
-      console.log('Final processed data:', filteredData);
+      // Map reg_tid to referat_godkendt_at for backwards compatibility
+      filteredData = filteredData.map(item => ({
+        ...item,
+        reg_tid: item.referat_godkendt_at
+      }));
+
+      console.log('ConversationSummaryAppCagi - fetchData - Final processed data:', filteredData); // DEBUG
       setReferats(filteredData);
     } catch (error) {
       if (error.name === 'CanceledError') return;
@@ -129,13 +139,14 @@ const ConversationSummaryApp = () => {
 
   // Fetch data when filters change
   useEffect(() => {
+    console.log('ConversationSummaryAppCagi - useEffect - Active filters changed:', activeFilters); // DEBUG
     fetchData();
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchData]);
+  }, [fetchData, activeFilters]);
 
   // Handler functions
   const handleRemoveFilter = useCallback((filterType) => {
@@ -158,7 +169,7 @@ const ConversationSummaryApp = () => {
   return (
     <div className="w-full p-4">
       <h1 className="text-2xl font-bold mb-4">Samtalereferat Oversigt</h1>
-      
+
       {loading && (
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-600">Indlæser referater...</div>
@@ -170,7 +181,7 @@ const ConversationSummaryApp = () => {
           {error}
         </div>
       )}
-      
+
       {!loading && !error && (
         <>
           {referats.length > 0 && !selectedReport && (
