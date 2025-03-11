@@ -5,9 +5,40 @@ import { registerLocale } from 'react-datepicker';
 import da from 'date-fns/locale/da';
 import { useFilters } from '../../context/FilterContext';
 import { useDashboard } from '../../context/DashboardContext';
-import { formatDateForUrl } from '../conversation/utils/dateUtils';
+import { X } from 'lucide-react';
 
+// Register Danish locale for DatePicker
 registerLocale('da', da);
+
+/**
+ * Helper function to safely parse dates
+ * @param {string|Date} dateValue - The date to parse
+ * @returns {Date|null} - Returns a valid Date object or null
+ */
+const safelyParseDate = (dateValue) => {
+  if (!dateValue) return null;
+  
+  try {
+    // If it's already a Date object
+    if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+      return dateValue;
+    }
+    
+    // If it's a string in DD.MM.YYYY format
+    if (typeof dateValue === 'string' && dateValue.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+      const [day, month, year] = dateValue.split('.');
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      return !isNaN(date.getTime()) ? date : null;
+    }
+    
+    // Try standard Date parsing
+    const date = new Date(dateValue);
+    return !isNaN(date.getTime()) ? date : null;
+  } catch (err) {
+    console.error('Error parsing date:', err, dateValue);
+    return null;
+  }
+};
 
 const FilterSidebar = () => {
   const { 
@@ -21,19 +52,19 @@ const FilterSidebar = () => {
   const { samtaletyper, isLoading } = useDashboard();
   const sidebarRef = useRef(null);
 
-  // Local state for filter values
+  // Local state for filter values - with proper date conversion
   const [localFilters, setLocalFilters] = useState({
-    startDate: filters.startDate,
-    endDate: filters.endDate,
-    conversationType: filters.conversationType
+    startDate: safelyParseDate(filters.startDate),
+    endDate: safelyParseDate(filters.endDate),
+    conversationType: filters.conversationType || 'all'
   });
 
   // Update local filters when global filters change
   useEffect(() => {
     setLocalFilters({
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-      conversationType: filters.conversationType
+      startDate: safelyParseDate(filters.startDate),
+      endDate: safelyParseDate(filters.endDate),
+      conversationType: filters.conversationType || 'all'
     });
   }, [filters]);
 
@@ -53,41 +84,26 @@ const FilterSidebar = () => {
   }, [isSidebarOpen, setIsSidebarOpen]);
 
   const handleApplyFilters = () => {
-    // Create a new URLSearchParams object
-    const queryParams = new URLSearchParams();
+    // Format dates for URL and API
+    const formatDateString = (date) => {
+      if (!date) return null;
+      
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      
+      return `${day}.${month}.${year}`;
+    };
 
-    // Only add parameters if they have values and aren't default values
-    if (localFilters.startDate) {
-      const formattedStartDate = formatDateForUrl(localFilters.startDate);
-      if (formattedStartDate) {
-        queryParams.set('startDate', formattedStartDate);
-      }
-    }
-
-    if (localFilters.endDate) {
-      const formattedEndDate = formatDateForUrl(localFilters.endDate);
-      if (formattedEndDate) {
-        queryParams.set('endDate', formattedEndDate);
-      }
-    }
-
-    if (localFilters.conversationType && localFilters.conversationType !== 'all') {
-      queryParams.set('type', localFilters.conversationType);
-    }
-
-    // Update URL without reloading the page
-    const newUrl = queryParams.toString() 
-      ? `${window.location.pathname}?${queryParams.toString()}`
-      : window.location.pathname;
-    window.history.pushState({}, '', newUrl);
-
-    // Update global filters with the local state
-    updateFilters({
-      startDate: localFilters.startDate,
-      endDate: localFilters.endDate,
+    // Create new filters object with properly formatted dates
+    const newFilters = {
+      startDate: localFilters.startDate ? formatDateString(localFilters.startDate) : null,
+      endDate: localFilters.endDate ? formatDateString(localFilters.endDate) : null,
       conversationType: localFilters.conversationType
-    });
-    
+    };
+
+    // Update global filters
+    updateFilters(newFilters);
     setIsSidebarOpen(false);
   };
 
@@ -126,10 +142,9 @@ const FilterSidebar = () => {
             onClick={() => setIsSidebarOpen(false)}
             className="p-2 hover:bg-gray-100 rounded-full"
             disabled={isUpdating}
+            aria-label="Close filters"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X className="w-5 h-5" />
           </button>
         </div>
         

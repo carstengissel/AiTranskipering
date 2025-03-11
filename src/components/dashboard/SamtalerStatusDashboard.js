@@ -24,7 +24,7 @@ const SamtalerStatusDashboard = () => {
     fetchDashboardData
   } = useDashboard();
 
-  const { updateFilters, filters } = useFilters();
+  const { updateFilters, filters, resetFilters } = useFilters();
   const isInitialMount = useRef(true);
   const prevFiltersRef = useRef(filters);
 
@@ -49,7 +49,7 @@ const SamtalerStatusDashboard = () => {
             current: filters
           });
           await fetchDashboardData(filters);
-          prevFiltersRef.current = filters;
+          prevFiltersRef.current = {...filters};
         }
       }
     };
@@ -58,65 +58,91 @@ const SamtalerStatusDashboard = () => {
   }, [currentFilters, fetchDashboardData, filters]);
 
   const handleChartClick = useCallback((data) => {
-    if (!data || !data.date) return;
+    if (!data || !data.date) {
+      console.error("Invalid chart click data:", data);
+      return;
+    }
 
     try {
-      // Get start and end of the day
+      console.log("Chart clicked with data:", data);
+      
+      // If data already contains formatted dates, use them directly
+      if (data.formattedStartDate && data.formattedEndDate) {
+        console.log("Using pre-formatted dates:", {
+          start: data.formattedStartDate,
+          end: data.formattedEndDate
+        });
+        
+        // Update filters in context
+        updateFilters({
+          startDate: data.formattedStartDate,
+          endDate: data.formattedEndDate,
+          section: null,
+          conversationType: 'all'
+        });
+        
+        return;
+      }
+      
+      // Otherwise, calculate and format dates
       const date = new Date(data.date);
       const startDate = startOfDay(date);
       const endDate = endOfDay(date);
-
+      
       // Format dates for URL
       const formattedStartDate = formatDateForUrl(startDate);
       const formattedEndDate = formatDateForUrl(endDate);
-
-      if (!formattedStartDate || !formattedEndDate) return;
-
-      console.log("SamtalerStatusDashboard - handleChartClick - data.date:", data.date, "formattedStartDate:", formattedStartDate, "formattedEndDate:", formattedEndDate); // DEBUG
-
-      // Create URL parameters
-      const searchParams = new URLSearchParams();
-      searchParams.set('startDate', formattedStartDate);
-      searchParams.set('endDate', formattedEndDate);
-
-      // Navigate to conversation summary with date filter
-      // const url = `/conversation-summary?${searchParams.toString()}`;
-      // console.log("SamtalerStatusDashboard - handleChartClick - Navigating to URL:", url); // DEBUG
-      // navigate(url);
-
-      // Update filters in context
-      const newFilters = {
+      
+      if (!formattedStartDate || !formattedEndDate) {
+        console.error("Failed to format dates:", { startDate, endDate });
+        return;
+      }
+      
+      console.log("Formatted dates for filter:", {
+        formattedStartDate,
+        formattedEndDate
+      });
+      
+      // Update filters in context with the formatted dates
+      updateFilters({
         startDate: formattedStartDate,
         endDate: formattedEndDate,
-        section: null, // Reset section when selecting new date
-        conversationType: 'all' // Reset conversation type when selecting new date
-      };
-      console.log("SamtalerStatusDashboard - handleChartClick - updateFilters:", newFilters); // DEBUG
-      updateFilters(newFilters);
+        section: null,
+        conversationType: 'all'
+      });
     } catch (error) {
       console.error('Error handling chart click:', error);
     }
-  }, [updateFilters, navigate]);
-  const handleVisSamtalerClick = useCallback(() => {
-    const { filters } = useFilters();
-    const { startDate, endDate, section, conversationType } = filters;
+  }, [updateFilters]);
+
+  const handleNavigateToDetails = useCallback(() => {
+    // Format the current filters for URL parameters
+    const queryParams = new URLSearchParams();
     
-    // Format dates for URL
-    const formattedStartDate = formatDateForUrl(startDate);
-    const formattedEndDate = formatDateForUrl(endDate);
-
-    // Create URL parameters
-    const searchParams = new URLSearchParams();
-    if (formattedStartDate) searchParams.set('startDate', formattedStartDate);
-    if (formattedEndDate) searchParams.set('endDate', formattedEndDate);
-    if (section) searchParams.set('section', section);
-    if (conversationType && conversationType !== 'all') searchParams.set('type', conversationType);
-
-    // Navigate to conversation summary with filters
-    const url = `/conversation-summary?${searchParams.toString()}`;
-    console.log("SamtalerStatusDashboard - handleVisSamtalerClick - Navigating to URL:", url); // DEBUG
+    if (filters.startDate) {
+      queryParams.set('startDate', filters.startDate);
+    }
+    
+    if (filters.endDate) {
+      queryParams.set('endDate', filters.endDate);
+    }
+    
+    if (filters.section) {
+      if (filters.section === 'uaendredeSektioner') {
+        queryParams.set('unchanged', 'true');
+      } else {
+        queryParams.set('section', filters.section);
+      }
+    }
+    
+    if (filters.conversationType && filters.conversationType !== 'all') {
+      queryParams.set('type', filters.conversationType);
+    }
+    
+    const url = `/conversation-summary?${queryParams.toString()}`;
+    console.log("Navigating to details with URL:", url);
     navigate(url);
-  }, [filters, navigate, formatDateForUrl]);
+  }, [filters, navigate]);
 
   // Use combined loading state for smoother transitions
   const isUpdating = isLoading || isPending;
@@ -124,7 +150,36 @@ const SamtalerStatusDashboard = () => {
   return (
     <div className="container mx-auto p-1 pt-0">
       <div className={`transition-opacity duration-300 ${isUpdating ? 'opacity-50' : 'opacity-100'}`}>
-        <DashboardHeader />
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-xl font-bold">Samtalereferat Statistik</h1>
+          <div className="flex gap-2">
+            {Object.values(filters).some(v => v) && (
+              <button
+                onClick={resetFilters}
+                disabled={isUpdating}
+                className={`px-4 py-2 rounded transition-all duration-200 ${
+                  isUpdating
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {isUpdating ? 'Nulstiller...' : 'Nulstil filtre'}
+              </button>
+            )}
+            <button
+              onClick={handleNavigateToDetails}
+              disabled={isUpdating}
+              className={`px-4 py-2 rounded transition-all duration-200 ${
+                isUpdating
+                  ? 'bg-blue-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
+            >
+              Vis samtaler
+            </button>
+          </div>
+        </div>
+        
         <DashboardKPIs />
 
         <div className="grid grid-cols-1 gap-2">
@@ -134,18 +189,13 @@ const SamtalerStatusDashboard = () => {
           />
           <TimeStatisticsChart
             data={statistics || []}
-            onChartClick={handleChartClick}
-          />
-          <MonthlyTimeStatisticsChart
-            data={statistics || []}
-          />
-          <FeedbackChart
-            data={statistics || []}
-            onChartClick={handleChartClick}
           />
           <SectionChangesChart
             data={statistics || []}
             onChartClick={handleChartClick}
+          />
+          <FeedbackChart
+            data={statistics || []}
           />
           <AverageSectionChangesChart
             data={statistics || []}

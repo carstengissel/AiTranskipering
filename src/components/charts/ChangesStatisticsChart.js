@@ -1,24 +1,31 @@
 import React, { memo, useState, useMemo } from 'react';
 import { BarChart, XAxis, YAxis, Bar, ResponsiveContainer } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import ChartTooltip from '../ChartTooltip';
 import { useDashboard } from '../../context/DashboardContext';
 import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
-import { startOfDay } from 'date-fns';
 
 const LoadingOverlay = () => (
   <div className="absolute inset-0 bg-white bg-opacity-75" />
 );
 
-const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
+/**
+ * Chart component displaying the number of conversations over time
+ * Allows filtering by clicking on bars
+ */
+const ChangesStatisticsChart = memo(({ data }) => {
   const { isPending } = useDashboard();
+  const navigate = useNavigate();
   const [timeScale, setTimeScale] = useState('weeks');
   const [selectedDate, setSelectedDate] = useState(null);
 
+  // Group data by the selected time scale
   const groupedData = useMemo(() => {
     return groupDataByTimeScale(data, timeScale, 'date');
   }, [data, timeScale]);
 
+  // Process data for the chart
   const chartData = useMemo(() => {
     if (!groupedData?.length) {
       return [{
@@ -29,38 +36,68 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
     }
 
     // Map the data to only include the count property
-    const mappedData = groupedData.map(item => ({
-      date: startOfDay(item.date).toISOString(), // Ensure consistent date format
+    return groupedData.map(item => ({
+      date: item.date, 
       displayDate: item.displayDate,
       count: item.totalCount || 0
     }));
-
-    // If a date is selected, only show that bar
-    if (selectedDate) {
-      console.log("ChangesStatisticsChart - chartData - selectedDate:", selectedDate); // DEBUG
-      return mappedData.filter(item => item.date === selectedDate);
-    }
-
-    console.log("ChangesStatisticsChart - chartData - all data"); // DEBUG
-    return mappedData;
-  }, [groupedData, selectedDate]);
+  }, [groupedData]);
 
   // Calculate total count
   const totalCount = useMemo(() => {
     return chartData.reduce((sum, item) => sum + (item.count || 0), 0);
   }, [chartData]);
 
+  /**
+   * Handle click on a bar chart
+   * Navigates directly to conversation summary with the selected date filter
+   */
   const handleBarClick = (data) => {
-    if (data && data.payload && data.payload.date) {
-      console.log("ChangesStatisticsChart - handleBarClick - data.payload.date:", data.payload.date, "timeScale:", timeScale); // DEBUG
+    if (!data || !data.payload || !data.payload.date) {
+      console.error("Invalid click data:", data);
+      return;
+    }
+    
+    try {
+      // Format the date for URL in DD.MM.YYYY format
+      const date = new Date(data.payload.date);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const formattedDate = `${day}.${month}.${year}`;
+      
+      console.log(`Bar clicked with date ${data.payload.date}, formatted as ${formattedDate}`);
+      
+      // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
-      // onChartClick should only update filters, not navigate
-      onChartClick({ ...data.payload, timeScale });
+      
+      // Navigate directly to conversation summary view with the date filter
+      navigate(`/conversation-summary?startDate=${formattedDate}&endDate=${formattedDate}`);
+    } catch (error) {
+      console.error("Error in handleBarClick:", error);
     }
   };
 
+  /**
+   * Custom tooltip for bar charts
+   */
+  const customTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-2 border rounded shadow-lg">
+          <p className="font-medium">{label}</p>
+          <p className="text-sm">{`Antal samtaler: ${payload[0].value}`}</p>
+          <div className="mt-2 pt-2 border-t text-xs text-blue-600">
+            Klik for at se samtaler fra denne dato
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="bg-white shadow rounded-lg p-4">
+    <div className="bg-white shadow rounded-lg p-4 relative">
       {isPending && <LoadingOverlay />}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
@@ -75,14 +112,6 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
               setSelectedDate(null);
             }}
           />
-          {selectedDate && (
-            <button
-              onClick={() => setSelectedDate(null)}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              Vis alle
-            </button>
-          )}
         </div>
         <div className="text-lg font-semibold">
           Antal samtaler: {totalCount}
@@ -112,10 +141,10 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
             />
             <Bar
               dataKey="count"
-              fill="#8884d8"
+              fill={selectedDate ? "#4f46e5" : "#8884d8"}
               name="Antal samtaler"
               onClick={handleBarClick}
-              isAnimationActive={false}
+              cursor="pointer"
               label={{
                 position: 'top',
                 fill: '#666',

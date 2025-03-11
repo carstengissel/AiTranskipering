@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFilters } from '../../context/FilterContext';
 import { useDashboard } from '../../context/DashboardContext';
+import { formatDateForUrl } from '../conversation/utils/dateUtils';
 
 const DashboardHeader = () => {
   const navigate = useNavigate();
@@ -9,32 +10,71 @@ const DashboardHeader = () => {
   const { accurateConversationCount, isLoading, isPending } = useDashboard();
 
   const handleNavigateToDetails = () => {
+    // Create a new URLSearchParams object for consistent parameter handling
     const queryParams = new URLSearchParams();
     
-    if (filters.date) {
-      queryParams.append('date', filters.date);
+    console.log("Current filters for navigation:", filters);
+    
+    // Format the dates consistently
+    let startDate = null;
+    let endDate = null;
+    
+    try {
+      // Handle the startDate
+      if (filters.startDate) {
+        startDate = formatDateForUrl(filters.startDate);
+        if (startDate) {
+          queryParams.append('startDate', startDate);
+          console.log("Added startDate to params:", startDate);
+        }
+      }
+      
+      // Handle the endDate
+      if (filters.endDate) {
+        endDate = formatDateForUrl(filters.endDate);
+        if (endDate) {
+          queryParams.append('endDate', endDate);
+          console.log("Added endDate to params:", endDate);
+        }
+      }
+      
+      // Single date handling (for backward compatibility or specific date filters)
+      if (filters.date) {
+        const formattedDate = formatDateForUrl(filters.date);
+        if (formattedDate) {
+          queryParams.append('date', formattedDate);
+          console.log("Added date to params:", formattedDate);
+        }
+      }
+    } catch (err) {
+      console.error("Error formatting dates for navigation:", err);
     }
-    if (filters.startDate) {
-      queryParams.append('startDate', filters.startDate);
-    }
-    if (filters.endDate) {
-      queryParams.append('endDate', filters.endDate);
-    }
+    
+    // Handle section filter
     if (filters.section) {
       if (filters.section === 'uaendredeSektioner') {
         queryParams.append('unchanged', 'true');
       } else {
         queryParams.append('section', filters.section);
       }
+      console.log("Added section to params:", filters.section);
     }
-    if (filters.conversationType) {
+    
+    // Handle conversation type filter
+    if (filters.conversationType && filters.conversationType !== 'all') {
       queryParams.append('type', filters.conversationType);
+      console.log("Added type to params:", filters.conversationType);
     }
 
-    navigate(`/conversation-summary?${queryParams.toString()}`);
+    // Create the final URL
+    const url = `/conversation-summary?${queryParams.toString()}`;
+    console.log("Navigating to:", url);
+    
+    // Use navigate to go to the conversation summary view with the filters
+    navigate(url);
   };
 
-  const hasActiveFilters = Object.values(filters).some(filter => filter !== null);
+  const hasActiveFilters = Object.values(filters).some(filter => filter !== null && filter !== 'all');
   const isUpdating = isLoading || isPending;
 
   return (
@@ -77,8 +117,9 @@ const DashboardHeader = () => {
               : 'bg-blue-600 hover:bg-blue-700'
           } text-white`}
         >
-          {/* Vis {accurateConversationCount} samtaler*/}
-          Vis samtaler
+          {hasActiveFilters 
+            ? `Vis filtrerede samtaler${accurateConversationCount ? ` (${accurateConversationCount})` : ''}`
+            : 'Vis samtaler'}
         </button>
       </div>
     </div>

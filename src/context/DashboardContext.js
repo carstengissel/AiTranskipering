@@ -1,12 +1,10 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useTransition } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useTransition, useEffect } from 'react';
 import { 
   fetchSamtaletyper, 
-  fetchReferatData, 
-  fetchAIReferatData, 
   fetchKPIStats,
   fetchTimelineStats 
 } from '../services/dashboardAPI';
-import { transformReferatData } from '../services/dashboardTransformers';
+import { formatDateForUrl } from '../components/conversation/utils/dateUtils';
 
 const DashboardContext = createContext();
 
@@ -42,6 +40,11 @@ export const DashboardProvider = ({ children }) => {
   // Keep previous state for smooth transitions
   const [previousState, setPreviousState] = useState(defaultState);
 
+  // Fetch conversation types on initial load
+  useEffect(() => {
+    fetchSamtaletyperData();
+  }, []);
+
   const fetchSamtaletyperData = useCallback(async () => {
     try {
       const data = await fetchSamtaletyper();
@@ -63,7 +66,12 @@ export const DashboardProvider = ({ children }) => {
         setTimelineData(newState.timelineData);
       }
       if (newState.statistics?.length) {
-        setStatistics(newState.statistics);
+        // Process timestamps to ensure valid Date objects
+        const processedStats = newState.statistics.map(stat => ({
+          ...stat,
+          date: typeof stat.date === 'string' ? stat.date : new Date().toISOString() // Ensure date is a string
+        }));
+        setStatistics(processedStats);
       }
       setAccurateConversationCount(newState.kpis?.totalCount || 0);
       // Update previous state after successful update
@@ -82,40 +90,77 @@ export const DashboardProvider = ({ children }) => {
       setIsLoading(true);
       setIsThrottled(true);
 
-      // Convert conversationType to type for API
-      const apiFilters = {
-        ...filters,
-        type: filters.conversationType,
-        conversationType: undefined
+      // Format dates for API
+      const formattedFilters = {
+        ...filters
       };
 
-      console.log('Fetching dashboard data with filters:', apiFilters);
+      // Convert startDate and endDate to proper format if they exist
+      if (filters.startDate) {
+        formattedFilters.startDate = formatDateForUrl(filters.startDate);
+      }
+      if (filters.endDate) {
+        formattedFilters.endDate = formatDateForUrl(filters.endDate);
+      }
+
+      // Convert conversationType to type for API
+      formattedFilters.type = filters.conversationType;
+      formattedFilters.conversationType = undefined;
+
+      console.log('Fetching dashboard data with filters:', formattedFilters);
 
       // Fetch all required data
       console.log('Starting API calls...');
       const [kpiStats, timelineStats] = await Promise.all([
-        fetchKPIStats(apiFilters),
-        fetchTimelineStats(apiFilters)
+        fetchKPIStats(formattedFilters),
+        fetchTimelineStats(formattedFilters)
       ]);
+
+      // Process timelineStats to ensure valid dates
+      const processedTimelineStats = Array.isArray(timelineStats) 
+        ? timelineStats.map(item => {
+            try {
+              // Convert and validate dates
+              const dateStr = item.date || new Date().toISOString();
+              const validDate = new Date(dateStr);
+              
+              // If invalid date, use current date
+              const date = !isNaN(validDate.getTime()) 
+                ? dateStr 
+                : new Date().toISOString();
+              
+              return {
+                ...item,
+                date: date
+              };
+            } catch (err) {
+              console.error('Error processing timeline stat date:', err);
+              return {
+                ...item,
+                date: new Date().toISOString()
+              };
+            }
+          })
+        : [];
 
       console.log('API responses:', {
         kpiStats,
         timelineStats: {
-          length: timelineStats.length,
-          firstPoint: timelineStats[0],
-          lastPoint: timelineStats[timelineStats.length - 1]
+          length: processedTimelineStats.length,
+          firstPoint: processedTimelineStats[0],
+          lastPoint: processedTimelineStats[processedTimelineStats.length - 1]
         }
       });
 
-      if (!timelineStats || timelineStats.length === 0) {
+      if (!processedTimelineStats || processedTimelineStats.length === 0) {
         console.warn('No timeline stats received');
       }
 
       // Update state with new data
       updateStateWithTransition({
         kpis: kpiStats,
-        timelineData: timelineStats,
-        statistics: timelineStats
+        timelineData: processedTimelineStats,
+        statistics: processedTimelineStats
       });
 
       // Reset throttle after 1 second

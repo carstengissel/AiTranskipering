@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ReportList from '../ConversationSummary/components/ReportList';
 import ReportDetail from '../ConversationSummary/components/ReportDetail';
-import { parseDateFromUrl } from './utils/dateUtils';
+import { parseDateFromUrl, formatDateForUrl } from './utils/dateUtils';
 import { parseReferat } from '../ConversationSummary/utils/referatUtils';
 import config from '../../config';
 
@@ -28,74 +28,138 @@ const ConversationSummaryApp = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const abortControllerRef = useRef(null);
+  const isMountedRef = useRef(true);
 
-  // Memoize URL parameters parsing
-  const { rawFilters, activeFilters } = useMemo(() => {
+  // Track if component is mounted to prevent state updates after unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Get and parse URL parameters
+  const urlParams = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
-    const raw = {
+    console.log('URL search parameters:', Object.fromEntries(searchParams.entries()));
+    
+    return {
       startDate: searchParams.get('startDate'),
       endDate: searchParams.get('endDate'),
+      date: searchParams.get('date'),
       section: searchParams.get('section'),
       type: searchParams.get('type'),
-      date: searchParams.get('date')
+      unchanged: searchParams.get('unchanged') === 'true'
     };
-
-    console.log('ConversationSummaryAppCagi - useMemo - Raw filters from URL:', raw); // DEBUG
-
-    // Parse dates and format them consistently
-    const startDate = parseDateFromUrl(raw.startDate);
-    const endDate = parseDateFromUrl(raw.endDate);
-    const date = parseDateFromUrl(raw.date);
-
-    console.log('ConversationSummaryAppCagi - useMemo - Parsed dates:', { startDate, endDate, date }); // DEBUG
-
-    const active = {
-      startDate: startDate,
-      endDate: endDate,
-      section: raw.section,
-      type: raw.type || 'all',
-      date: date
-    };
-
-    console.log('ConversationSummaryAppCagi - useMemo - Active filters:', active); // DEBUG
-    return { rawFilters: raw, activeFilters: active };
   }, [location.search]);
 
-  // Data fetching function
+  // Parse and format dates for API
+  const apiParams = useMemo(() => {
+    // Helper function to convert DD.MM.YYYY to YYYY-MM-DD for API
+    const convertDateFormat = (dateStr) => {
+      if (!dateStr) return null;
+      
+      // If already in DD.MM.YYYY format, convert to YYYY-MM-DD
+      if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+        const [day, month, year] = dateStr.split('.');
+        return `${year}-${month}-${day}`;
+      }
+      
+      // If already in YYYY-MM-DD format, return as is
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+      
+      // Try to parse as Date and format
+      try {
+        const date = new Date(dateStr);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().split('T')[0];
+        }
+      } catch (err) {
+        console.error('Error parsing date:', err);
+      }
+      
+      return null;
+    };
+    
+    return {
+      startDate: convertDateFormat(urlParams.startDate),
+      endDate: convertDateFormat(urlParams.endDate),
+      date: convertDateFormat(urlParams.date),
+      type: urlParams.type,
+      section: urlParams.section
+    };
+  }, [urlParams]);
+
+  // Format active filters for display in UI
+  const activeFilters = useMemo(() => {
+    const filters = {};
+    
+    if (urlParams.startDate) {
+      filters.startDate = urlParams.startDate;
+    }
+    
+    if (urlParams.endDate) {
+      filters.endDate = urlParams.endDate;
+    }
+    
+    if (urlParams.date) {
+      filters.date = urlParams.date;
+    }
+    
+    if (urlParams.section) {
+      filters.section = urlParams.section;
+    }
+    
+    if (urlParams.type) {
+      filters.type = urlParams.type;
+    }
+    
+    if (urlParams.unchanged) {
+      filters.unchanged = true;
+    }
+    
+    return filters;
+  }, [urlParams]);
+
+  // Fetch data from API
   const fetchData = useCallback(async () => {
+    // Cancel any ongoing requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    
+    // Create new abort controller for this request
     abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
+    if (!isMountedRef.current) return;
     setLoading(true);
     setError(null);
 
     try {
-      console.log('ConversationSummaryAppCagi - fetchData - Fetching data with filters:', activeFilters); // DEBUG
+      console.log('Fetching data with API params:', apiParams);
 
-      // Convert dates to YYYY-MM-DD format for the backend
-      const formatDateForBackend = (dateStr) => {
-        if (!dateStr) return null;
-        const [day, month, year] = dateStr.split('.');
-        return `${year}-${month}-${day}`;
-      };
-
-      const backendParams = {
-        startDate: formatDateForBackend(activeFilters.startDate),
-        endDate: formatDateForBackend(activeFilters.endDate),
-        date: formatDateForBackend(activeFilters.date),
-        type: activeFilters.type !== 'all' ? activeFilters.type : undefined
-      };
+      const params = {};
       
-      console.log('ConversationSummaryAppCagi - fetchData - Backend API params:', backendParams); // DEBUG
-
+      // Only add parameters with values
+      if (apiParams.startDate) params.startDate = apiParams.startDate;
+      if (apiParams.endDate) params.endDate = apiParams.endDate;
+      if (apiParams.date) params.date = apiParams.date;
+      if (apiParams.type) params.type = apiParams.type;
+      
+      console.log('Final API request parameters:', params);
+      
       const response = await axios.get('/api/samind_referat', {
-        params: backendParams,
-        signal: abortControllerRef.current.signal
+        params,
+        signal
       });
 
-      console.log('ConversationSummaryAppCagi - fetchData - API response:', response.data); // DEBUG
+      // Check if component is still mounted before updating state
+      if (!isMountedRef.current) return;
+
+      console.log('API response data:', response.data);
 
       if (!Array.isArray(response.data)) {
         console.error('Invalid API response format:', response.data);
@@ -104,18 +168,36 @@ const ConversationSummaryApp = () => {
 
       let filteredData = response.data;
 
-      // Apply section filter if present
-      if (activeFilters.section) {
+      // Apply section filter client-side if provided
+      if (urlParams.section) {
+        console.log('Filtering by section:', urlParams.section);
         filteredData = filteredData.filter(referat => {
           const sections = parseReferat(referat.referat);
-          return sections[activeFilters.section]?.length > 0;
+          return sections[urlParams.section]?.length > 0;
+        });
+      }
+      
+      // Apply "unchanged" filter if set
+      if (urlParams.unchanged) {
+        console.log('Filtering for unchanged sections');
+        filteredData = filteredData.filter(referat => {
+          const aiSections = parseReferat(referat.aiReferat);
+          const humanSections = parseReferat(referat.referat);
+          
+          // Check if any section is unchanged
+          return Object.keys(aiSections).some(key => 
+            JSON.stringify(aiSections[key]) === JSON.stringify(humanSections[key]) &&
+            aiSections[key].length > 0
+          );
         });
       }
 
+      console.log(`Filtered data: ${filteredData.length} results`);
+
       // Sort by referat_godkendt_at date, newest first
       filteredData.sort((a, b) => {
-        const dateA = new Date(a.referat_godkendt_at);
-        const dateB = new Date(b.referat_godkendt_at);
+        const dateA = new Date(a.referat_godkendt_at || 0);
+        const dateB = new Date(b.referat_godkendt_at || 0);
         return dateB.getTime() - dateA.getTime();
       });
 
@@ -125,28 +207,39 @@ const ConversationSummaryApp = () => {
         reg_tid: item.referat_godkendt_at
       }));
 
-      console.log('ConversationSummaryAppCagi - fetchData - Final processed data:', filteredData); // DEBUG
-      setReferats(filteredData);
+      if (isMountedRef.current) {
+        setReferats(filteredData);
+        setLoading(false);
+      }
     } catch (error) {
-      if (error.name === 'CanceledError') return;
+      // Only handle non-cancellation errors
+      if (error.name === 'CanceledError' || error.name === 'AbortError') {
+        console.log('Request was canceled:', error.message);
+        return;
+      }
+      
       console.error('Fetch error:', error);
-      setError(error.message || 'Der opstod en fejl ved hentning af referater.');
-      setReferats([]);
-    } finally {
-      setLoading(false);
+      
+      if (isMountedRef.current) {
+        setError(error.message || 'Der opstod en fejl ved hentning af referater.');
+        setReferats([]);
+        setLoading(false);
+      }
     }
-  }, [activeFilters]);
+  }, [apiParams, urlParams.section, urlParams.unchanged]);
 
   // Fetch data when filters change
   useEffect(() => {
-    console.log('ConversationSummaryAppCagi - useEffect - Active filters changed:', activeFilters); // DEBUG
+    console.log('Filters changed, fetching data...');
     fetchData();
+    
+    // Cleanup function
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchData, activeFilters]);
+  }, [fetchData]);
 
   // Handler functions
   const handleRemoveFilter = useCallback((filterType) => {
@@ -177,7 +270,7 @@ const ConversationSummaryApp = () => {
       )}
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}
@@ -187,7 +280,7 @@ const ConversationSummaryApp = () => {
           {referats.length > 0 && !selectedReport && (
             <ReportList
               referats={referats}
-              activeFilters={rawFilters}
+              activeFilters={activeFilters}
               onSelectReport={handleSelectReport}
               onRemoveFilter={handleRemoveFilter}
               onNavigateBack={() => navigate('/')}
@@ -202,7 +295,7 @@ const ConversationSummaryApp = () => {
               showColorLegend={showColorLegend}
               openSections={openSections}
               expandedSections={expandedSections}
-              activeFilters={rawFilters}
+              activeFilters={activeFilters}
               onBack={() => setSelectedReport(null)}
               onTextViewModeChange={setTextViewMode}
               onToggleColorLegend={() => setShowColorLegend(!showColorLegend)}
