@@ -1,20 +1,77 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+# AiTranskipering
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+A React application for AI-assisted transcription and summarization of conversations with a dashboard for statistics and analytics.
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+## Features
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+- Dashboard with various statistics charts
+- Conversation summary view
+- Filtering capabilities
+- Section change tracking
+- Feedback analysis
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+## Tech Stack
+
+- Frontend: React, Recharts, TailwindCSS
+- Backend: Node.js, Express
+- Database: SQL Server
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+- SQL Server database
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/carstengissel/AiTranskipering.git
+cd AiTranskipering
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Create a `.env` file in the root directory with the following variables:
+```
+DB_SERVER=your_db_server
+DB_DATABASE=your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+```
+
+4. Start the development server
+```bash
+npm run run:app
+```
+
+This will start both the backend server on port 3002 and the frontend on port 83.
+
+## Scripts
+
+- `npm run start` - Start the React frontend
+- `npm run server` - Start the backend server
+- `npm run run:app` - Start both frontend and backend
+- `npm run build` - Build the React app for production
+- `npm run build:iis` - Build for IIS deployment
+
+## Project Structure
+
+- `/src` - React frontend code
+  - `/components` - React components
+  - `/context` - React context providers
+  - `/services` - API services
+  - `/utils` - Utility functions
+- `/backend` - Node.js backend code
+  - `/sql` - SQL queries and database functions
+- `/deployment` - Deployment configuration
+- `/python` - Python scripts for text comparison
+
+## License
+
+This project is private and not licensed for public use.
