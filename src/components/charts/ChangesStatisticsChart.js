@@ -1,13 +1,16 @@
 import React, { memo, useState, useMemo } from 'react';
-import { BarChart, XAxis, YAxis, Bar, ResponsiveContainer } from 'recharts';
+import { BarChart, XAxis, YAxis, Bar, ResponsiveContainer, Tooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import ChartTooltip from '../ChartTooltip';
 import { useDashboard } from '../../context/DashboardContext';
 import TimeScaleSelector from './TimeScaleSelector';
-import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
+import { groupDataByTimeScale, filterRealDates, filterFutureDates } from '../../utils/timeScaleUtils';
+import { isValid } from 'date-fns';
 
 const LoadingOverlay = () => (
-  <div className="absolute inset-0 bg-white bg-opacity-75" />
+  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
 );
 
 /**
@@ -20,10 +23,24 @@ const ChangesStatisticsChart = memo(({ data }) => {
   const [timeScale, setTimeScale] = useState('weeks');
   const [selectedDate, setSelectedDate] = useState(null);
 
+  // Ensure we only show real data
+  const processedData = useMemo(() => {
+    // Filter out any data with future dates
+    const noFutureDates = filterFutureDates(data, 'date');
+    
+    // Only keep data points that have actual counts
+    const realData = filterRealDates(noFutureDates);
+    
+    return realData;
+  }, [data]);
+
   // Group data by the selected time scale
   const groupedData = useMemo(() => {
-    return groupDataByTimeScale(data, timeScale, 'date');
-  }, [data, timeScale]);
+    const grouped = groupDataByTimeScale(processedData, timeScale, 'date');
+    
+    // Additional filtering to ensure we only show non-zero counts
+    return grouped.filter(item => item.totalCount > 0 || item.count > 0);
+  }, [processedData, timeScale]);
 
   // Process data for the chart
   const chartData = useMemo(() => {
@@ -35,11 +52,13 @@ const ChangesStatisticsChart = memo(({ data }) => {
       }];
     }
 
-    // Map the data to only include the count property
+    // Map the data to only include the needed properties
     return groupedData.map(item => ({
-      date: item.date, 
+      date: item.date ? item.date.toISOString() : '', 
       displayDate: item.displayDate,
-      count: item.totalCount || 0
+      count: item.totalCount || 0,
+      // Store the raw date object for validation
+      rawDate: item.date
     }));
   }, [groupedData]);
 
@@ -50,23 +69,30 @@ const ChangesStatisticsChart = memo(({ data }) => {
 
   /**
    * Handle click on a bar chart
-   * Navigates directly to conversation summary with the selected date filter
+   * Validates the date exists in the database before navigating
    */
   const handleBarClick = (data) => {
     if (!data || !data.payload || !data.payload.date) {
-      console.error("Invalid click data:", data);
       return;
     }
     
     try {
-      // Format the date for URL in DD.MM.YYYY format
-      const date = new Date(data.payload.date);
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      const formattedDate = `${day}.${month}.${year}`;
+      // Verify this is a valid date with actual data
+      if (data.payload.count <= 0) {
+        return;
+      }
       
-      console.log(`Bar clicked with date ${data.payload.date}, formatted as ${formattedDate}`);
+      // Ensure we have a valid date
+      const clickDate = data.payload.rawDate || new Date(data.payload.date);
+      if (!isValid(clickDate)) {
+        return;
+      }
+      
+      // Format the date for URL in DD.MM.YYYY format
+      const day = String(clickDate.getDate()).padStart(2, '0');
+      const month = String(clickDate.getMonth() + 1).padStart(2, '0');
+      const year = clickDate.getFullYear();
+      const formattedDate = `${day}.${month}.${year}`;
       
       // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
@@ -74,7 +100,7 @@ const ChangesStatisticsChart = memo(({ data }) => {
       // Navigate directly to conversation summary view with the date filter
       navigate(`/conversation-summary?startDate=${formattedDate}&endDate=${formattedDate}`);
     } catch (error) {
-      console.error("Error in handleBarClick:", error);
+      // Silently handle error
     }
   };
 
@@ -83,13 +109,17 @@ const ChangesStatisticsChart = memo(({ data }) => {
    */
   const customTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
+      const count = payload[0].value;
+      
       return (
         <div className="bg-white p-2 border rounded shadow-lg">
           <p className="font-medium">{label}</p>
-          <p className="text-sm">{`Antal samtaler: ${payload[0].value}`}</p>
-          <div className="mt-2 pt-2 border-t text-xs text-blue-600">
-            Klik for at se samtaler fra denne dato
-          </div>
+          <p className="text-sm">{`Antal samtaler: ${count}`}</p>
+          {count > 0 && (
+            <div className="mt-2 pt-2 border-t text-xs text-blue-600">
+              Klik for at se samtaler fra denne dato
+            </div>
+          )}
         </div>
       );
     }
@@ -139,6 +169,7 @@ const ChangesStatisticsChart = memo(({ data }) => {
               domain={[0, dataMax => Math.max(5, Math.ceil(dataMax * 1.1))]}
               padding={{ top: 20 }}
             />
+            <Tooltip content={customTooltip} />
             <Bar
               dataKey="count"
               fill={selectedDate ? "#4f46e5" : "#8884d8"}

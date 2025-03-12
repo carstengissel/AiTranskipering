@@ -51,7 +51,6 @@ export const DashboardProvider = ({ children }) => {
       setSamtaletyper(data);
       return data;
     } catch (err) {
-      console.error('Error fetching samtaletyper:', err);
       setSamtaletyper([]);
       return [];
     }
@@ -82,7 +81,6 @@ export const DashboardProvider = ({ children }) => {
   const fetchDashboardData = useCallback(async (filters = {}, isReset = false) => {
     // Skip if throttled and not a reset operation
     if (!isReset && isThrottled) {
-      console.log('Throttling dashboard data fetch');
       return;
     }
 
@@ -107,10 +105,7 @@ export const DashboardProvider = ({ children }) => {
       formattedFilters.type = filters.conversationType;
       formattedFilters.conversationType = undefined;
 
-      console.log('Fetching dashboard data with filters:', formattedFilters);
-
       // Fetch all required data
-      console.log('Starting API calls...');
       const [kpiStats, timelineStats] = await Promise.all([
         fetchKPIStats(formattedFilters),
         fetchTimelineStats(formattedFilters)
@@ -134,7 +129,6 @@ export const DashboardProvider = ({ children }) => {
                 date: date
               };
             } catch (err) {
-              console.error('Error processing timeline stat date:', err);
               return {
                 ...item,
                 date: new Date().toISOString()
@@ -142,19 +136,6 @@ export const DashboardProvider = ({ children }) => {
             }
           })
         : [];
-
-      console.log('API responses:', {
-        kpiStats,
-        timelineStats: {
-          length: processedTimelineStats.length,
-          firstPoint: processedTimelineStats[0],
-          lastPoint: processedTimelineStats[processedTimelineStats.length - 1]
-        }
-      });
-
-      if (!processedTimelineStats || processedTimelineStats.length === 0) {
-        console.warn('No timeline stats received');
-      }
 
       // Update state with new data
       updateStateWithTransition({
@@ -169,7 +150,6 @@ export const DashboardProvider = ({ children }) => {
       }, 1000);
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
       // On error, revert to previous state
       updateStateWithTransition(previousState);
     } finally {

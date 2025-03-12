@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');
+const { diffWords } = require('diff');
 require('dotenv').config();
 
 // Database config
@@ -44,6 +45,99 @@ const connectToDatabase = async () => {
     console.error('Database connection failed:', err);
     throw err;
   }
+};
+
+// Helper function to parse a referat into sections
+const parseReferat = (referat) => {
+  if (!referat) {
+    return {
+      viHarAftalt: [],
+      viHarIDagTaltOm: [],
+      dinJobsogningIndtilNu: [],
+      andet: []
+    };
+  }
+
+  const sections = {
+    viHarAftalt: [],
+    viHarIDagTaltOm: [],
+    dinJobsogningIndtilNu: [],
+    andet: []
+  };
+
+  const lines = referat.split('\n');
+  let currentSection = 'andet';
+  let currentText = '';
+
+  // Process each line and categorize into appropriate sections
+  for (const line of lines) {
+    if (line.includes('Vi har aftalt')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarAftalt';
+      currentText = '';
+    } else if (line.includes('Vi har i dag talt om')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarIDagTaltOm';
+      currentText = '';
+    } else if (line.includes('Din jobsøgning indtil nu')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'dinJobsogningIndtilNu';
+      currentText = '';
+    } else if (line.trim()) {
+      // Handle bullet points and regular text differently
+      if (line.trim().startsWith('- ')) {
+        if (currentText.trim()) {
+          sections[currentSection].push(currentText.trim());
+          currentText = '';
+        }
+        sections[currentSection].push(line.trim());
+      } else {
+        currentText += (currentText ? ' ' : '') + line.trim();
+      }
+    }
+  }
+
+  // Add any remaining text
+  if (currentText.trim()) {
+    sections[currentSection].push(currentText.trim());
+  }
+
+  return sections;
+};
+
+// Helper function to count changes in a section using diffWords
+const countSectionChanges = (aiText, humanText, sectionName) => {
+  if (!aiText || !humanText) return 0;
+  
+  const aiParsed = parseReferat(aiText);
+  const humanParsed = parseReferat(humanText);
+  
+  // Join all lines with newlines to preserve structure
+  const aiSectionText = aiParsed[sectionName].join('\n');
+  const humanSectionText = humanParsed[sectionName].join('\n');
+  
+  // If section is empty in both texts, no changes
+  if (!aiSectionText.trim() && !humanSectionText.trim()) return 0;
+  
+  // Use diffWords to calculate changes
+  const diff = diffWords(aiSectionText, humanSectionText);
+  const changes = diff.filter(part => part.added || part.removed);
+  
+  console.log('Section changes:', {
+    sectionName,
+    changes: changes.map(c => ({
+      value: c.value,
+      type: c.added ? 'added' : 'removed'
+    }))
+  });
+  
+  return changes.length;
 };
 
 // KPI stats endpoint
@@ -275,7 +369,49 @@ app.get('/api/timeline-stats', async (req, res) => {
         dateFormat = "CAST(referat_godkendt_at AS DATE)";
     }
     
-    const query = `
+    // First, get all the records we need to process
+    const recordsQuery = `
+      SELECT
+        lbnr,
+        ${dateFormat} as date,
+        referat,
+        AI_Referat as aiReferat
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
+    `;
+    
+    console.log('Executing records query:', recordsQuery);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query to get records
+    const recordsRequest = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      recordsRequest.input(param.name, param.type, param.value);
+    });
+    
+    const recordsResult = await recordsRequest.query(recordsQuery);
+    console.log(`Found ${recordsResult.recordset.length} records for processing`);
+    
+    // Process records to calculate section changes
+    const processedRecords = recordsResult.recordset.map(record => {
+      // Calculate changes for each section using diffWords
+      const viHarAftaltChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarAftalt');
+      const viHarIDagTaltOmChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarIDagTaltOm');
+      const dinJobsogningIndtilNuChanges = countSectionChanges(record.aiReferat, record.referat, 'dinJobsogningIndtilNu');
+      
+      return {
+        ...record,
+        viHarAftaltChanges,
+        viHarIDagTaltOmChanges,
+        dinJobsogningIndtilNuChanges,
+        uaendredeSektioner: (viHarAftaltChanges === 0 && viHarIDagTaltOmChanges === 0 && dinJobsogningIndtilNuChanges === 0) ? 1 : 0
+      };
+    });
+    
+    // Now get the basic stats from the database
+    const statsQuery = `
       WITH DailyStats AS (
         SELECT
           ${dateFormat} as date,
@@ -295,26 +431,7 @@ app.get('/api/timeline-stats', async (req, res) => {
             AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) < 1000 
             THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
             ELSE NULL
-          END), 0) as avg_time_to_approval,
-          -- Simple section change counts based on LIKE patterns
-          SUM(CASE
-            WHEN referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%' AND referat <> ai_referat
-            THEN 1 ELSE 0
-          END) as viHarAftalt,
-          SUM(CASE
-            WHEN referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%' AND referat <> ai_referat
-            THEN 1 ELSE 0
-          END) as viHarIDagTaltOm,
-          SUM(CASE
-            WHEN referat LIKE '%Din jobsøgning indtil nu%' AND ai_referat LIKE '%Din jobsøgning indtil nu%' AND referat <> ai_referat
-            THEN 1 ELSE 0
-          END) as dinJobsogningIndtilNu,
-          SUM(CASE
-            WHEN (referat LIKE '%Vi har aftalt%' AND ai_referat LIKE '%Vi har aftalt%' AND referat = ai_referat)
-            OR (referat LIKE '%Vi har i dag talt om%' AND ai_referat LIKE '%Vi har i dag talt om%' AND referat = ai_referat)
-            OR (referat LIKE '%Din jobsøgning indtil nu%' AND ai_referat LIKE '%Din jobsøgning indtil nu%' AND referat = ai_referat)
-            THEN 1 ELSE 0
-          END) as uaendredeSektioner
+          END), 0) as avg_time_to_approval
         FROM ai_statistik WITH (NOLOCK)
         WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
         GROUP BY ${groupByClause}
@@ -325,31 +442,52 @@ app.get('/api/timeline-stats', async (req, res) => {
         positive_feedback as positiveFeedback,
         negative_feedback as negativeFeedback,
         avg_time_to_ai_report as avgTimeToAiReport,
-        avg_time_to_approval as avgTimeToApproval,
-        viHarAftalt,
-        viHarIDagTaltOm,
-        dinJobsogningIndtilNu,
-        uaendredeSektioner
+        avg_time_to_approval as avgTimeToApproval
       FROM DailyStats
       ORDER BY date
     `;
     
-    console.log('Executing timeline stats query:', query);
-    console.log('With parameters:', sqlParams);
+    console.log('Executing stats query:', statsQuery);
     
-    // Execute the query
-    const request = pool.request();
+    // Execute the query to get stats
+    const statsRequest = pool.request();
     
     // Add parameters to the request
     sqlParams.forEach(param => {
-      request.input(param.name, param.type, param.value);
+      statsRequest.input(param.name, param.type, param.value);
     });
     
-    const result = await request.query(query);
-    console.log(`Found ${result.recordset.length} timeline records`);
+    const statsResult = await statsRequest.query(statsQuery);
+    console.log(`Found ${statsResult.recordset.length} stats records`);
+    
+    // Combine the stats with the processed section changes
+    const combinedResults = statsResult.recordset.map(stat => {
+      // Find all records for this date
+      const dateRecords = processedRecords.filter(record => {
+        const recordDate = new Date(record.date).toISOString().split('T')[0];
+        const statDate = new Date(stat.date).toISOString().split('T')[0];
+        return recordDate === statDate;
+      });
+      
+      // Calculate section changes for this date
+      const viHarAftalt = dateRecords.reduce((sum, record) => sum + record.viHarAftaltChanges, 0);
+      const viHarIDagTaltOm = dateRecords.reduce((sum, record) => sum + record.viHarIDagTaltOmChanges, 0);
+      const dinJobsogningIndtilNu = dateRecords.reduce((sum, record) => sum + record.dinJobsogningIndtilNuChanges, 0);
+      const uaendredeSektioner = dateRecords.reduce((sum, record) => sum + record.uaendredeSektioner, 0);
+      
+      return {
+        ...stat,
+        viHarAftalt,
+        viHarIDagTaltOm,
+        dinJobsogningIndtilNu,
+        uaendredeSektioner
+      };
+    });
+    
+    console.log(`Found ${combinedResults.length} timeline records`);
     
     // Send the results
-    res.json(result.recordset);
+    res.json(combinedResults);
   } catch (err) {
     console.error('Error fetching timeline stats:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -452,7 +590,7 @@ app.get('/api/samind_referat', async (req, res) => {
           sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
           console.log('Filtering by start date:', formattedStartDate);
         } else if (formattedEndDate) {
-          dateFilter = "CAST(referat_godkendt_at AS DATE) <= @endDate";
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
           sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
           console.log('Filtering by end date:', formattedEndDate);
         }

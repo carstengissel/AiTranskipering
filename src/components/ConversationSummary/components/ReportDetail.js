@@ -110,62 +110,34 @@ const ReportDetail = ({
   const humanParsedReferat = parseReferat(report.referat);
   const aiParsedReferat = parseReferat(report.aiReferat);
 
-  // Calculate section change percentage using character-level comparison
+  // Calculate section change percentage using word-level comparison
   const calculateSectionPercentage = (section) => {
+    console.log('Calculating section percentage for:', section);
     const aiText = aiParsedReferat[section].join('\n');
     const humanText = humanParsedReferat[section].join('\n');
     
     if (!humanText.trim()) return 0;
     
-    // Convert texts to character arrays
-    const aiChars = Array.from(aiText);
-    const humanChars = Array.from(humanText);
+    // Use diffWords to get word-level changes
+    const diff = diffWords(aiText, humanText);
     
-    let changes = 0;
-    let consecutiveChanges = 0;
-    let i = 0;
-    let j = 0;
+    // Count changed words (added or removed)
+    const changedWords = diff.filter(part => part.added || part.removed).length;
     
-    // Compare characters to count changes
-    while (i < humanChars.length || j < aiChars.length) {
-      if (i >= humanChars.length) {
-        changes += aiChars.length - j;
-        break;
-      }
-      if (j >= aiChars.length) {
-        changes += humanChars.length - i;
-        break;
-      }
-      
-      if (humanChars[i] !== aiChars[j]) {
-        consecutiveChanges++;
-        changes++;
-        i++;
-        j++;
-      } else {
-        if (consecutiveChanges < 3) {
-          changes -= consecutiveChanges;
-        }
-        consecutiveChanges = 0;
-        i++;
-        j++;
-      }
-    }
+    // Count total words in human text
+    const totalWords = humanText.trim().split(/\s+/).length;
     
-    // Calculate percentage and scale down by 0.25 to match card view
-    return Math.min(100, Math.round((changes / humanChars.length) * 25));
+    // Calculate percentage
+    const percentage = Math.min(100, Math.round((changedWords / totalWords) * 25));
+    console.log('Word changes:', changedWords, 'out of', totalWords, 'words');
+    console.log('Calculated percentage:', `${percentage}%`, `(${changedWords} / ${totalWords} * 25)`);
+    return percentage;
   };
 
   // Calculate the average percentage for verification
   const calculateAveragePercentage = () => {
     return calculateChangePercentage(report.aiReferat, report.referat);
   };
-
-  // Log percentages for debugging
-  console.log('Average percentage:', calculateAveragePercentage());
-  Object.keys(humanParsedReferat).forEach(section => {
-    console.log(`${section} percentage:`, calculateSectionPercentage(section));
-  });
 
   // Get background color class based on percentage
   const getBackgroundColorClass = (percentage) => {
@@ -260,7 +232,9 @@ const ReportDetail = ({
             className={`border rounded-lg ${activeFilters.section === section ? 'bg-blue-50' : 'bg-white'}`}
           >
             {(() => {
+              console.log('Calling calculateSectionPercentage for section:', section);
               const percentage = calculateSectionPercentage(section);
+              console.log('Got percentage for section:', section, percentage);
               const bgColorClass = getBackgroundColorClass(percentage);
               const style = percentage > 25 && percentage <= 70 
                 ? { background: 'linear-gradient(to right, #facc15, #eab308, #facc15)' }

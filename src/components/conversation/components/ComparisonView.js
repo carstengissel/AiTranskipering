@@ -3,13 +3,13 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { compareTexts, getDiffCounts, getTotalChanges, levenshteinDistance } from '../utils/comparisonUtils';
 import { sectionNames } from '../utils/parseUtils';
 
-const ComparisonView = ({ 
-  section, 
-  aiText, 
-  humanText, 
-  isOpen, 
+const ComparisonView = ({
+  section,
+  aiText,
+  humanText,
+  isOpen,
   onToggle,
-  isHighlighted 
+  isHighlighted
 }) => {
   // Split texts into words and calculate word-level changes
   const aiWords = aiText.trim().split(/\s+/).filter(word => word.length > 0);
@@ -47,6 +47,13 @@ const ComparisonView = ({
   
   // Calculate percentage based on total words and apply scaling
   const totalWords = humanWords.length;
+  console.log('📊 SECTION SUMMARY:', {
+    section,
+    totalWords,
+    changes,
+    changePercentage: Math.min(100, Math.round((changes / (totalWords || 1)) * 100))
+  });
+  
   const changePercentage = Math.min(100, Math.round((changes / (totalWords || 1)) * 100));
 
   return (

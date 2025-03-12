@@ -41,18 +41,12 @@ const defaultConfig = {
 
 export const fetchSamtaletyper = async () => {
   try {
-    console.log('Fetching samtaletyper...');
     const response = await axios.get('/api/samtaletyper', defaultConfig);
-    console.log('Samtaletyper response:', response);
-
     if (!response.data) {
-      console.warn('No data received from samtaletyper endpoint');
       return [];
     }
-
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Error fetching samtaletyper:', error);
     return [];
   }
 };

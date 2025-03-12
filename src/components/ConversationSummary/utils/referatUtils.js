@@ -219,13 +219,9 @@ export const calculateChangePercentage = (aiReferat, referat) => {
           nonEmptySections++;
         }
 
-        // Log individual section percentages for debugging
-        console.log(`${section} percentage:`, sectionPercentage);
       }
     }
   });
-
-  console.log('Section percentages:', sectionPercentages);
   
   // For the card view, use average of main sections
   const displayPercentage = nonEmptySections > 0 ? Math.round(totalSectionPercentage / nonEmptySections) : 0;

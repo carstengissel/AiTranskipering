@@ -12,40 +12,25 @@ const TimeStatisticsChart = memo(({ data, onChartClick }) => {
   const [timeScale, setTimeScale] = useState('weeks');
   const [error, setError] = useState(null);
 
-  // Log data changes
-  useEffect(() => {
-    console.log('TimeStatisticsChart data:', {
-      hasData: !!data,
-      length: data?.length,
-      firstPoint: data?.[0],
-      lastPoint: data?.[data?.length - 1]
-    });
-  }, [data]);
-
   const groupedData = useMemo(() => {
     try {
       if (!data || data.length === 0) {
-        console.log('No data available for TimeStatisticsChart');
         return [];
       }
 
-      console.log('Raw data for TimeStatisticsChart:', data);
       const grouped = groupDataByTimeScale(data, timeScale, 'date');
-      console.log('Grouped data:', grouped);
 
       // Validate data format
       if (!grouped.every(item => 
         typeof item.avgTimeToAiReport === 'number' && 
         typeof item.avgTimeToApproval === 'number'
       )) {
-        console.error('Invalid data format in grouped data');
         setError('Invalid data format');
         return [];
       }
 
       return grouped;
     } catch (err) {
-      console.error('Error processing data:', err);
       setError(err.message);
       return [];
     }
@@ -71,10 +56,8 @@ const TimeStatisticsChart = memo(({ data, onChartClick }) => {
         return !isNaN(val) && val > 0 && val < 1000 ? val : 0;  // Filter out extreme and negative values
       }));
       const max = Math.max(maxApproval, maxAIReport, 100);
-      console.log('Max values:', { maxApproval, maxAIReport, max });
       return max;
     } catch (err) {
-      console.error('Error calculating max value:', err);
       return 100;
     }
   }, [groupedData]);

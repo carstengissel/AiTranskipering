@@ -37,6 +37,22 @@ export const parseReferat = (referat) => {
   }
 };
 
+// Helper function to count changes using diffWords
+const countSectionChanges = (aiText, originalText) => {
+  if (!aiText || !originalText) return 0;
+  const diff = diffWords(aiText, originalText);
+  const changes = diff.filter(part => part.added || part.removed);
+  console.log('Section changes:', {
+    aiText,
+    originalText,
+    changes: changes.map(c => ({
+      value: c.value,
+      type: c.added ? 'added' : 'removed'
+    }))
+  });
+  return changes.length;
+};
+
 export const countChangedSections = (originalReferat, aiReferat) => {
   const originalSections = parseReferat(originalReferat);
   const aiSections = parseReferat(aiReferat);
@@ -49,20 +65,18 @@ export const countChangedSections = (originalReferat, aiReferat) => {
 
   // Calculate changes for each section using diffWords
   if (originalSections.viHarAftalt !== aiSections.viHarAftalt) {
-    const diff = diffWords(aiSections.viHarAftalt, originalSections.viHarAftalt);
-    changes.viHarAftalt = diff.filter(part => part.added || part.removed).length;
+    changes.viHarAftalt = countSectionChanges(aiSections.viHarAftalt, originalSections.viHarAftalt);
   }
 
   if (originalSections.viHarIDagTaltOm !== aiSections.viHarIDagTaltOm) {
-    const diff = diffWords(aiSections.viHarIDagTaltOm, originalSections.viHarIDagTaltOm);
-    changes.viHarIDagTaltOm = diff.filter(part => part.added || part.removed).length;
+    changes.viHarIDagTaltOm = countSectionChanges(aiSections.viHarIDagTaltOm, originalSections.viHarIDagTaltOm);
   }
 
   if (originalSections.dinJobsogningIndtilNu !== aiSections.dinJobsogningIndtilNu) {
-    const diff = diffWords(aiSections.dinJobsogningIndtilNu, originalSections.dinJobsogningIndtilNu);
-    changes.dinJobsogningIndtilNu = diff.filter(part => part.added || part.removed).length;
+    changes.dinJobsogningIndtilNu = countSectionChanges(aiSections.dinJobsogningIndtilNu, originalSections.dinJobsogningIndtilNu);
   }
 
+  console.log('Total changes:', changes);
   return changes;
 };
 
