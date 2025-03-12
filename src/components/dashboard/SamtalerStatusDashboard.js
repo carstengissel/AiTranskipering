@@ -13,7 +13,6 @@ import SectionChangesChart from '../charts/SectionChangesChart';
 import ConversationTypesChart from '../charts/ConversationTypesChart';
 import AverageSectionChangesChart from '../charts/AverageSectionChangesChart';
 import { formatDateForUrl } from '../conversation/utils/dateUtils';
-import { startOfDay, endOfDay } from 'date-fns';
 
 const SamtalerStatusDashboard = () => {
   const navigate = useNavigate();
@@ -86,25 +85,25 @@ const SamtalerStatusDashboard = () => {
         return;
       }
       
-      // Otherwise, calculate and format dates
-      const date = new Date(data.date);
-      const startDate = startOfDay(date);
-      const endDate = endOfDay(date);
-      
+      // Use period start and end dates from the data
+      const startDate = data.payload.periodStart;
+      const endDate = data.payload.periodEnd;
+
       // Format dates for URL
       const formattedStartDate = formatDateForUrl(startDate);
       const formattedEndDate = formatDateForUrl(endDate);
-      
+
       if (!formattedStartDate || !formattedEndDate) {
         console.error("Failed to format dates:", { startDate, endDate });
         return;
       }
-      
+
       console.log("Formatted dates for filter:", {
         formattedStartDate,
-        formattedEndDate
+        formattedEndDate,
+        timeScale: data.timeScale
       });
-      
+
       // Update filters in context with the formatted dates and timeScale
       updateFilters({
         startDate: formattedStartDate,

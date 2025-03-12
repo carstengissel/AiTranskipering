@@ -5,7 +5,19 @@ import ChartTooltip from '../ChartTooltip';
 import { useDashboard } from '../../context/DashboardContext';
 import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale, filterRealDates, filterFutureDates } from '../../utils/timeScaleUtils';
-import { isValid } from 'date-fns';
+import {
+  isValid,
+  startOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  startOfDay,
+  endOfDay,
+  addDays
+} from 'date-fns';
 
 const LoadingOverlay = () => (
   <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
@@ -54,11 +66,13 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
 
     // Map the data to only include the needed properties
     return groupedData.map(item => ({
-      date: item.date ? item.date.toISOString() : '', 
+      date: item.date ? item.date.toISOString() : '',
       displayDate: item.displayDate,
       count: item.totalCount || 0,
-      // Store the raw date object for validation
-      rawDate: item.date
+      // Store the raw date object and period dates
+      rawDate: item.date,
+      periodStart: item.periodStart,
+      periodEnd: item.periodEnd
     }));
   }, [groupedData]);
 
@@ -88,11 +102,47 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
         return;
       }
       
-      // Format the date for URL in DD.MM.YYYY format
-      const day = String(clickDate.getDate()).padStart(2, '0');
-      const month = String(clickDate.getMonth() + 1).padStart(2, '0');
-      const year = clickDate.getFullYear();
-      const formattedDate = `${day}.${month}.${year}`;
+      // Calculate start and end dates based on time scale
+      let startDate = clickDate;
+      let endDate = clickDate;
+      
+      switch (timeScale) {
+        case 'weeks':
+          // Start from Monday, end on Sunday
+          startDate = startOfWeek(clickDate, { weekStartsOn: 1 });
+          endDate = addDays(startDate, 6);
+          break;
+        case 'months':
+          // Start from first day of month, end on last day
+          startDate = startOfMonth(clickDate);
+          endDate = endOfMonth(clickDate);
+          break;
+        case 'quarters':
+          // Start from first day of quarter, end on last day
+          startDate = startOfQuarter(clickDate);
+          endDate = endOfQuarter(clickDate);
+          break;
+        case 'years':
+          // Start from first day of year, end on last day
+          startDate = startOfYear(clickDate);
+          endDate = endOfYear(clickDate);
+          break;
+        default:
+          // For days, use the same date
+          startDate = startOfDay(clickDate);
+          endDate = endOfDay(clickDate);
+      }
+      
+      // Format dates for URL in DD.MM.YYYY format
+      const formatDateForFilter = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+      };
+      
+      const formattedStartDate = formatDateForFilter(startDate);
+      const formattedEndDate = formatDateForFilter(endDate);
       
       // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
@@ -100,8 +150,8 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
       // Call the onChartClick prop with the formatted dates and timeScale
       onChartClick({
         date: data.payload.date,
-        formattedStartDate: formattedDate,
-        formattedEndDate: formattedDate,
+        formattedStartDate,
+        formattedEndDate,
         timeScale: timeScale
       });
     } catch (error) {

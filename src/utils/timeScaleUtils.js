@@ -1,4 +1,17 @@
-import { startOfDay, startOfWeek, startOfMonth, startOfQuarter, startOfYear, format, isValid } from 'date-fns';
+import {
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  addDays,
+  format,
+  isValid
+} from 'date-fns';
 import { da } from 'date-fns/locale';
 
 /**
@@ -127,11 +140,33 @@ export const groupDataByTimeScale = (data, scale = 'weeks', dateAccessor = 'date
       
       const key = periodStart.toISOString();
       
+      // Calculate period end based on scale
+      let periodEnd;
+      switch (scale) {
+        case 'weeks':
+          periodEnd = addDays(periodStart, 6); // End on Sunday
+          break;
+        case 'months':
+          periodEnd = endOfMonth(periodStart);
+          break;
+        case 'quarters':
+          periodEnd = endOfQuarter(periodStart);
+          break;
+        case 'years':
+          periodEnd = endOfYear(periodStart);
+          break;
+        default:
+          periodEnd = endOfDay(periodStart);
+      }
+
       // Initialize period if not exists
       if (!acc[key]) {
         acc[key] = {
           date: periodStart,
           displayDate: formatPeriod(periodStart, scale),
+          rawDate: new Date(date), // Store the original date
+          periodStart, // Store period start date
+          periodEnd,   // Store period end date
           items: []
         };
       }

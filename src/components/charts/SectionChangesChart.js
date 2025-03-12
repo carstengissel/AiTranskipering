@@ -5,6 +5,19 @@ import { useFilters } from '../../context/FilterContext';
 import { useDashboard } from '../../context/DashboardContext';
 import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
+import {
+  isValid,
+  startOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfQuarter,
+  endOfQuarter,
+  startOfYear,
+  endOfYear,
+  startOfDay,
+  endOfDay,
+  addDays
+} from 'date-fns';
 
 const SECTION_COLORS = {
   viHarAftalt: '#8884d8',
@@ -54,8 +67,68 @@ const SectionChangesChart = memo(({ data, onChartClick }) => {
   const yAxisProps = calculateYAxisProps(groupedData);
 
   const handleClick = (data) => {
-    if (data && data.payload && data.payload.date) {
-      onChartClick({ ...data.payload, timeScale });
+    if (!data || !data.payload || !data.payload.date) {
+      return;
+    }
+
+    try {
+      // Ensure we have a valid date
+      const clickDate = data.payload.rawDate || new Date(data.payload.date);
+      if (!isValid(clickDate)) {
+        return;
+      }
+
+      // Calculate start and end dates based on time scale
+      let startDate = clickDate;
+      let endDate = clickDate;
+      
+      switch (timeScale) {
+        case 'weeks':
+          // Start from Monday, end on Sunday
+          startDate = startOfWeek(clickDate, { weekStartsOn: 1 });
+          endDate = addDays(startDate, 6);
+          break;
+        case 'months':
+          // Start from first day of month, end on last day
+          startDate = startOfMonth(clickDate);
+          endDate = endOfMonth(clickDate);
+          break;
+        case 'quarters':
+          // Start from first day of quarter, end on last day
+          startDate = startOfQuarter(clickDate);
+          endDate = endOfQuarter(clickDate);
+          break;
+        case 'years':
+          // Start from first day of year, end on last day
+          startDate = startOfYear(clickDate);
+          endDate = endOfYear(clickDate);
+          break;
+        default:
+          // For days, use the same date
+          startDate = startOfDay(clickDate);
+          endDate = endOfDay(clickDate);
+      }
+      
+      // Format dates for URL in DD.MM.YYYY format
+      const formatDateForFilter = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
+      };
+      
+      const formattedStartDate = formatDateForFilter(startDate);
+      const formattedEndDate = formatDateForFilter(endDate);
+      
+      // Call the onChartClick prop with the formatted dates and timeScale
+      onChartClick({
+        date: data.payload.date,
+        formattedStartDate,
+        formattedEndDate,
+        timeScale: timeScale
+      });
+    } catch (error) {
+      console.error('Error handling chart click:', error);
     }
   };
 
