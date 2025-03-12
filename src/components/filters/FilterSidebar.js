@@ -57,7 +57,8 @@ const FilterSidebar = () => {
   const [localFilters, setLocalFilters] = useState({
     startDate: safelyParseDate(filters.startDate),
     endDate: safelyParseDate(filters.endDate),
-    conversationType: filters.conversationType || 'all'
+    conversationType: filters.conversationType || 'all',
+    timeScale: filters.timeScale || 'weeks'
   });
 
   // Update local filters when global filters change
@@ -65,7 +66,8 @@ const FilterSidebar = () => {
     setLocalFilters({
       startDate: safelyParseDate(filters.startDate),
       endDate: safelyParseDate(filters.endDate),
-      conversationType: filters.conversationType || 'all'
+      conversationType: filters.conversationType || 'all',
+      timeScale: filters.timeScale || 'weeks'
     });
   }, [filters]);
 
@@ -117,7 +119,8 @@ const FilterSidebar = () => {
     updateFilters({
       startDate: localFilters.startDate,
       endDate: localFilters.endDate,
-      conversationType: localFilters.conversationType
+      conversationType: localFilters.conversationType,
+      timeScale: localFilters.timeScale
     });
     
     setIsSidebarOpen(false);
@@ -128,7 +131,8 @@ const FilterSidebar = () => {
     setLocalFilters({
       startDate: null,
       endDate: null,
-      conversationType: 'all'
+      conversationType: 'all',
+      timeScale: 'weeks'
     });
 
     // Use the resetFilters function from FilterContext
@@ -164,6 +168,24 @@ const FilterSidebar = () => {
         </div>
         
         <div>
+          <div className="mb-4">
+            <label className="block mb-1">
+              Tidsinterval
+            </label>
+            <select
+              className="w-full p-1 border"
+              value={localFilters.timeScale}
+              onChange={(e) => setLocalFilters(prev => ({ ...prev, timeScale: e.target.value }))}
+              disabled={isUpdating}
+            >
+              <option value="days">Dage</option>
+              <option value="weeks">Uger</option>
+              <option value="months">Måneder</option>
+              <option value="quarters">Kvartaler</option>
+              <option value="years">År</option>
+            </select>
+          </div>
+
           <div className="mb-4">
             <label className="block mb-1">
               Samtaletype

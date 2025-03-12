@@ -9,7 +9,8 @@ const defaultFilters = {
   endDate: null,
   conversationType: 'all',
   section: null,
-  date: null
+  date: null,
+  timeScale: 'weeks'
 };
 
 export const FilterProvider = ({ children }) => {
@@ -54,7 +55,8 @@ export const FilterProvider = ({ children }) => {
       endDate: null,
       conversationType: 'all',
       section: null,
-      date: null
+      date: null,
+      timeScale: 'weeks'
     };
 
     // Use startTransition for the state update and data fetch

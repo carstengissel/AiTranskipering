@@ -78,7 +78,8 @@ const SamtalerStatusDashboard = () => {
           startDate: data.formattedStartDate,
           endDate: data.formattedEndDate,
           section: null,
-          conversationType: 'all'
+          conversationType: 'all',
+          timeScale: data.timeScale // Set the timeScale from the chart
         });
         setIsSidebarOpen(true);
         
@@ -104,12 +105,13 @@ const SamtalerStatusDashboard = () => {
         formattedEndDate
       });
       
-      // Update filters in context with the formatted dates
+      // Update filters in context with the formatted dates and timeScale
       updateFilters({
         startDate: formattedStartDate,
         endDate: formattedEndDate,
         section: null,
-        conversationType: 'all'
+        conversationType: 'all',
+        timeScale: data.timeScale
       });
     } catch (error) {
       console.error('Error handling chart click:', error);

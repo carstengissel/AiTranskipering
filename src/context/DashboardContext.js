@@ -88,9 +88,10 @@ export const DashboardProvider = ({ children }) => {
       setIsLoading(true);
       setIsThrottled(true);
 
-      // Format dates for API
+      // Format dates and timeScale for API
       const formattedFilters = {
-        ...filters
+        ...filters,
+        timeScale: filters.timeScale || 'weeks' // Include timeScale with default
       };
 
       // Convert startDate and endDate to proper format if they exist

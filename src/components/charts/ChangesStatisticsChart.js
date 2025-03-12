@@ -97,11 +97,12 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
       // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
       
-      // Call the onChartClick prop with the formatted dates
+      // Call the onChartClick prop with the formatted dates and timeScale
       onChartClick({
         date: data.payload.date,
         formattedStartDate: formattedDate,
-        formattedEndDate: formattedDate
+        formattedEndDate: formattedDate,
+        timeScale: timeScale
       });
     } catch (error) {
       console.error('Error handling bar click:', error);

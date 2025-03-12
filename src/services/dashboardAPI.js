@@ -210,7 +210,7 @@ export const fetchTimelineStats = async (filters = {}) => {
     const formattedFilters = {
       startDate: filters.startDate ? formatDateForUrl(filters.startDate) : null,
       endDate: filters.endDate ? formatDateForUrl(filters.endDate) : null,
-      interval: filters.interval || 'day'
+      interval: filters.timeScale || 'weeks' // Use timeScale from filters
     };
 
     // Remove null/undefined values
