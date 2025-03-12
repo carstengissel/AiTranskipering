@@ -102,36 +102,9 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
         return;
       }
       
-      // Calculate start and end dates based on time scale
-      let startDate = clickDate;
-      let endDate = clickDate;
-      
-      switch (timeScale) {
-        case 'weeks':
-          // Start from Monday, end on Sunday
-          startDate = startOfWeek(clickDate, { weekStartsOn: 1 });
-          endDate = addDays(startDate, 6);
-          break;
-        case 'months':
-          // Start from first day of month, end on last day
-          startDate = startOfMonth(clickDate);
-          endDate = endOfMonth(clickDate);
-          break;
-        case 'quarters':
-          // Start from first day of quarter, end on last day
-          startDate = startOfQuarter(clickDate);
-          endDate = endOfQuarter(clickDate);
-          break;
-        case 'years':
-          // Start from first day of year, end on last day
-          startDate = startOfYear(clickDate);
-          endDate = endOfYear(clickDate);
-          break;
-        default:
-          // For days, use the same date
-          startDate = startOfDay(clickDate);
-          endDate = endOfDay(clickDate);
-      }
+      // Use the period start and end dates from the payload
+      const startDate = data.payload.periodStart;
+      const endDate = data.payload.periodEnd;
       
       // Format dates for URL in DD.MM.YYYY format
       const formatDateForFilter = (date) => {
