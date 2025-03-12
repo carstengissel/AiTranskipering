@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useTransition, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { formatDateForUrl, parseDateFromUrl } from '../components/conversation/utils/dateUtils';
+import React, { createContext, useContext, useState, useCallback, useMemo, useTransition } from 'react';
+import { useDashboard } from './DashboardContext';
+import { formatDateForUrl } from '../components/conversation/utils/dateUtils';
 
 const FilterContext = createContext();
 
@@ -13,118 +13,62 @@ const defaultFilters = {
 };
 
 export const FilterProvider = ({ children }) => {
-  const location = useLocation();
-  const navigate = useNavigate();
   const [filters, setFilters] = useState(defaultFilters);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { fetchDashboardData } = useDashboard();
   const [isPending, startTransition] = useTransition();
-
-  // Parse URL parameters on initial load
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const urlFilters = {
-      startDate: parseDateFromUrl(searchParams.get('startDate')),
-      endDate: parseDateFromUrl(searchParams.get('endDate')),
-      date: parseDateFromUrl(searchParams.get('date')),
-      section: searchParams.get('section'),
-      conversationType: searchParams.get('type') || 'all'
-    };
-
-    // Only update state if we have actual filters in the URL
-    if (Object.values(urlFilters).some(val => val)) {
-      console.log('Setting initial filters from URL:', urlFilters);
-      setFilters(current => ({
-        ...current,
-        ...Object.fromEntries(
-          Object.entries(urlFilters).filter(([_, v]) => v !== null)
-        )
-      }));
-    }
-  }, [location.search]);
 
   // Keep track of previous filters for smooth transitions
   const [previousFilters, setPreviousFilters] = useState(defaultFilters);
 
-  // Update URL when filters change
-  const updateURL = useCallback((newFilters) => {
-    const params = new URLSearchParams();
-    
-    if (newFilters.startDate) {
-      params.set('startDate', newFilters.startDate);
-    }
-    
-    if (newFilters.endDate) {
-      params.set('endDate', newFilters.endDate);
-    }
-    
-    if (newFilters.date) {
-      params.set('date', newFilters.date);
-    }
-    
-    if (newFilters.section) {
-      params.set('section', newFilters.section);
-    }
-    
-    if (newFilters.conversationType && newFilters.conversationType !== 'all') {
-      params.set('type', newFilters.conversationType);
-    }
-    
-    // Build new URL
-    const queryString = params.toString();
-    const newURL = queryString 
-      ? `${location.pathname}?${queryString}`
-      : location.pathname;
-    
-    // Update URL without full page reload
-    window.history.pushState({}, '', newURL);
-  }, [location.pathname]);
-
   // Memoize the update function to prevent unnecessary re-renders
   const updateFilters = useCallback((newFilters) => {
-    console.log('Updating filters to:', newFilters);
-    
-    setPreviousFilters(current => ({...current})); // Store current filters before updating
-
-    // Update URL
-    updateURL(newFilters);
+    setPreviousFilters(filters); // Store current filters before updating
 
     startTransition(() => {
       setFilters(prev => {
-        // Check if there are actual changes
+        // Only update if there are actual changes
         const hasChanges = Object.entries(newFilters).some(
-          ([key, value]) => {
-            // Special handling for date objects
-            if (key.includes('Date') && prev[key] && value) {
-              const prevDate = new Date(prev[key]).getTime();
-              const newDate = new Date(value).getTime();
-              return prevDate !== newDate;
-            }
-            return prev[key] !== value;
-          }
+          ([key, value]) => prev[key] !== value
         );
-
+        
         if (hasChanges) {
+          // Keep current filters visible while fetching new data
+          fetchDashboardData(newFilters);
+          // Open the sidebar when filters are applied
+          setIsSidebarOpen(true);
           return { ...prev, ...newFilters };
         }
         return prev;
       });
     });
-  }, [updateURL]);
+  }, [filters, fetchDashboardData]);
 
   const resetFilters = useCallback(() => {
-    console.log('Resetting all filters');
-    
     // Store current filters before resetting
-    setPreviousFilters(current => ({...current}));
+    setPreviousFilters(filters);
 
-    // Reset all filters in state
+    // Reset all filters including any additional ones that might have been added
+    const resetState = {
+      startDate: null,
+      endDate: null,
+      conversationType: 'all',
+      section: null,
+      date: null
+    };
+
+    // Use startTransition for the state update and data fetch
     startTransition(() => {
-      setFilters(defaultFilters);
+      // Keep current filters visible while fetching new data
+      setFilters(resetState);
+      // Fetch fresh data with no filters
+      fetchDashboardData({}, true);
     });
 
     // Clear URL parameters
-    navigate(location.pathname, { replace: true });
-  }, [navigate, location.pathname]);
+    const newUrl = window.location.pathname;
+    window.history.pushState({}, '', newUrl);
+  }, [filters, fetchDashboardData]);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(prev => !prev);
@@ -152,14 +96,13 @@ export const FilterProvider = ({ children }) => {
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     filters,
-    previousFilters,
+    previousFilters, // Expose previous filters for transitions
     updateFilters,
     resetFilters,
     isSidebarOpen,
     setIsSidebarOpen,
     toggleSidebar,
-    isPending,
-    processDateFilter
+    isPending
   }), [
     filters,
     previousFilters,
@@ -167,8 +110,7 @@ export const FilterProvider = ({ children }) => {
     resetFilters,
     isSidebarOpen,
     toggleSidebar,
-    isPending,
-    processDateFilter
+    isPending
   ]);
 
   return (

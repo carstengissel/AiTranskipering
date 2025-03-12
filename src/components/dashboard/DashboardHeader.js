@@ -6,8 +6,8 @@ import { formatDateForUrl } from '../conversation/utils/dateUtils';
 
 const DashboardHeader = () => {
   const navigate = useNavigate();
-  const { filters, toggleSidebar, resetFilters } = useFilters();
-  const { accurateConversationCount, isLoading, isPending } = useDashboard();
+  const { filters, setIsSidebarOpen, resetFilters } = useFilters();
+  const { isLoading, isPending } = useDashboard();
 
   const handleNavigateToDetails = () => {
     // Create a new URLSearchParams object for consistent parameter handling
@@ -79,47 +79,33 @@ const DashboardHeader = () => {
 
   return (
     <div className="flex justify-between items-center mb-4">
-      <h1 className="text-xl font-bold">Samtalereferat Statistik</h1>
-      <div className="flex gap-2">
-        <button
-          onClick={toggleSidebar}
-          className={`p-2 rounded-full transition-colors duration-200 ${
-            isUpdating 
-              ? 'bg-gray-100 cursor-not-allowed' 
-              : 'hover:bg-gray-100'
-          }`}
-          aria-label="Åbn filtre"
-          disabled={isUpdating}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-        </button>
+      <div className="flex items-center">
+        <h1 className="text-xl font-bold">Samtalereferat Statistik</h1>
+      </div>
+      <div className="flex items-center gap-1">
         {hasActiveFilters && (
           <button
             onClick={resetFilters}
             disabled={isUpdating}
-            className={`px-4 py-2 rounded transition-all duration-200 ${
-              isUpdating
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
+            className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
           >
-            {isUpdating ? 'Nulstiller...' : 'Nulstil filtre'}
+            Nulstil filtre
           </button>
         )}
         <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="px-2 text-gray-600"
+        >
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3L2 21h20L12 3z" />
+          </svg>
+        </button>
+        <button
           onClick={handleNavigateToDetails}
           disabled={isUpdating}
-          className={`px-4 py-2 rounded transition-all duration-200 ${
-            isUpdating
-              ? 'bg-blue-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white`}
+          className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
         >
-          {hasActiveFilters 
-            ? `Vis filtrerede samtaler${accurateConversationCount ? ` (${accurateConversationCount})` : ''}`
-            : 'Vis samtaler'}
+          Vis samtaler
         </button>
       </div>
     </div>

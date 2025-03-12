@@ -17,7 +17,7 @@ const LoadingOverlay = () => (
  * Chart component displaying the number of conversations over time
  * Allows filtering by clicking on bars
  */
-const ChangesStatisticsChart = memo(({ data }) => {
+const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
   const { isPending } = useDashboard();
   const navigate = useNavigate();
   const [timeScale, setTimeScale] = useState('weeks');
@@ -72,7 +72,7 @@ const ChangesStatisticsChart = memo(({ data }) => {
    * Validates the date exists in the database before navigating
    */
   const handleBarClick = (data) => {
-    if (!data || !data.payload || !data.payload.date) {
+    if (!data || !data.payload || !data.payload.date || !onChartClick) {
       return;
     }
     
@@ -97,10 +97,14 @@ const ChangesStatisticsChart = memo(({ data }) => {
       // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
       
-      // Navigate directly to conversation summary view with the date filter
-      navigate(`/conversation-summary?startDate=${formattedDate}&endDate=${formattedDate}`);
+      // Call the onChartClick prop with the formatted dates
+      onChartClick({
+        date: data.payload.date,
+        formattedStartDate: formattedDate,
+        formattedEndDate: formattedDate
+      });
     } catch (error) {
-      // Silently handle error
+      console.error('Error handling bar click:', error);
     }
   };
 

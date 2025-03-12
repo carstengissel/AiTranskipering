@@ -24,7 +24,7 @@ const SamtalerStatusDashboard = () => {
     fetchDashboardData
   } = useDashboard();
 
-  const { updateFilters, filters, resetFilters } = useFilters();
+  const { updateFilters, filters, resetFilters, setIsSidebarOpen } = useFilters();
   const isInitialMount = useRef(true);
   const prevFiltersRef = useRef(filters);
 
@@ -73,13 +73,14 @@ const SamtalerStatusDashboard = () => {
           end: data.formattedEndDate
         });
         
-        // Update filters in context
+        // Update filters in context and open sidebar
         updateFilters({
           startDate: data.formattedStartDate,
           endDate: data.formattedEndDate,
           section: null,
           conversationType: 'all'
         });
+        setIsSidebarOpen(true);
         
         return;
       }
@@ -150,35 +151,7 @@ const SamtalerStatusDashboard = () => {
   return (
     <div className="container mx-auto p-1 pt-0">
       <div className={`transition-opacity duration-300 ${isUpdating ? 'opacity-50' : 'opacity-100'}`}>
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-bold">Samtalereferat Statistik</h1>
-          <div className="flex gap-2">
-            {Object.values(filters).some(v => v) && (
-              <button
-                onClick={resetFilters}
-                disabled={isUpdating}
-                className={`px-4 py-2 rounded transition-all duration-200 ${
-                  isUpdating
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                {isUpdating ? 'Nulstiller...' : 'Nulstil filtre'}
-              </button>
-            )}
-            <button
-              onClick={handleNavigateToDetails}
-              disabled={isUpdating}
-              className={`px-4 py-2 rounded transition-all duration-200 ${
-                isUpdating
-                  ? 'bg-blue-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white`}
-            >
-              Vis samtaler
-            </button>
-          </div>
-        </div>
+        <DashboardHeader />
         
         <DashboardKPIs />
 

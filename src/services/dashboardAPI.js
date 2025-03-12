@@ -68,8 +68,8 @@ export const fetchReferatData = async (filters = {}) => {
       }
     });
 
-    console.log('Fetching referat data with filters:', formattedFilters);
-    const response = await axios.get('/api/samind_referat', { 
+    console.log('dashboardAPI - fetchReferatData - formattedFilters:', formattedFilters);
+    const response = await axios.get('/api/samind_referat', {
       ...defaultConfig,
       params: formattedFilters
     });
@@ -112,8 +112,8 @@ export const fetchAIReferatData = async (filters = {}) => {
       }
     });
 
-    console.log('Fetching AI referat data with filters:', formattedFilters);
-    const response = await axios.get('/api/samind_ai_referat', { 
+    console.log('dashboardAPI - fetchAIReferatData - formattedFilters:', formattedFilters);
+    const response = await axios.get('/api/samind_ai_referat', {
       ...defaultConfig,
       params: formattedFilters
     });
@@ -170,8 +170,8 @@ export const fetchKPIStats = async (filters = {}) => {
       }
     });
 
-    console.log('Fetching KPI stats with filters:', formattedFilters);
-    const response = await axios.get('/api/kpi-stats', { 
+    console.log('dashboardAPI - fetchKPIStats - formattedFilters:', formattedFilters);
+    const response = await axios.get('/api/kpi-stats', {
       ...defaultConfig,
       params: formattedFilters
     });
@@ -220,8 +220,8 @@ export const fetchTimelineStats = async (filters = {}) => {
       }
     });
 
-    console.log('Fetching timeline stats with filters:', formattedFilters);
-    const response = await axios.get('/api/timeline-stats', { 
+    console.log('dashboardAPI - fetchTimelineStats - formattedFilters:', formattedFilters);
+    const response = await axios.get('/api/timeline-stats', {
       ...defaultConfig,
       params: formattedFilters
     });
