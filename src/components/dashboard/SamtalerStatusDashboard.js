@@ -10,6 +10,7 @@ import TimeStatisticsChart from '../charts/TimeStatisticsChart';
 import MonthlyTimeStatisticsChart from '../charts/MonthlyTimeStatisticsChart';
 import FeedbackChart from '../charts/FeedbackChart';
 import SectionChangesChart from '../charts/SectionChangesChart';
+import SectionChangesBarChart from '../charts/SectionChangesBarChart';
 import ConversationTypesChart from '../charts/ConversationTypesChart';
 import AverageSectionChangesChart from '../charts/AverageSectionChangesChart';
 import { formatDateForUrl } from '../conversation/utils/dateUtils';
@@ -168,6 +169,7 @@ const SamtalerStatusDashboard = () => {
             data={statistics || []}
             onChartClick={handleChartClick}
           />
+          <SectionChangesBarChart />
           <FeedbackChart
             data={statistics || []}
           />

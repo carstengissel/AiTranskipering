@@ -3,12 +3,12 @@
   "WorkspaceRootPath": "D:\\WorkNy\\AiTranskipering\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\WorkNy\\AiTranskipering\\backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
-      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:src\\components\\charts\\ChangesStatisticsChart.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\WorkNy\\AiTranskipering\\backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:backend\\server.js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\WorkNy\\AiTranskipering\\package.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
@@ -67,7 +67,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 12,
+          "SelectedChildIndex": 16,
           "Children": [
             {
               "$type": "Bookmark",
@@ -119,13 +119,13 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "server.js",
               "DocumentMoniker": "D:\\WorkNy\\AiTranskipering\\backend\\server.js",
               "RelativeDocumentMoniker": "backend\\server.js",
               "ToolTip": "D:\\WorkNy\\AiTranskipering\\backend\\server.js",
               "RelativeToolTip": "backend\\server.js",
-              "ViewState": "AgIAAMkBAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA8AAAADAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
               "WhenOpened": "2025-02-04T14:47:43.929Z",
               "EditorCaption": ""
@@ -166,15 +166,16 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "ChangesStatisticsChart.js",
               "DocumentMoniker": "D:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
               "RelativeDocumentMoniker": "src\\components\\charts\\ChangesStatisticsChart.js",
               "ToolTip": "D:\\WorkNy\\AiTranskipering\\src\\components\\charts\\ChangesStatisticsChart.js",
               "RelativeToolTip": "src\\components\\charts\\ChangesStatisticsChart.js",
-              "ViewState": "AgIAAFoAAAAAAAAAAAAAAFoAAAAbAAAAAAAAAA==",
+              "ViewState": "AgIAAGwAAAAAAAAAAAAAAHQAAABAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
-              "WhenOpened": "2024-12-04T12:14:51.225Z"
+              "WhenOpened": "2024-12-04T12:14:51.225Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
