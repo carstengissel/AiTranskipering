@@ -283,7 +283,9 @@ const ConversationSummaryApp = () => {
               activeFilters={activeFilters}
               onSelectReport={handleSelectReport}
               onRemoveFilter={handleRemoveFilter}
-              onNavigateBack={() => navigate('/')}
+              onNavigateBack={() => {
+                navigate('/?returnToStats=true');
+              }}
             />
           )}
 
