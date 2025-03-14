@@ -71,6 +71,11 @@ const FilterSidebar = () => {
     });
   }, [filters]);
 
+  // Debug samtaletyper data
+  useEffect(() => {
+    console.log('Samtaletyper data:', samtaletyper);
+  }, [samtaletyper]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
@@ -168,23 +173,7 @@ const FilterSidebar = () => {
         </div>
         
         <div>
-          <div className="mb-4">
-            <label className="block mb-1">
-              Tidsinterval
-            </label>
-            <select
-              className="w-full p-1 border"
-              value={localFilters.timeScale}
-              onChange={(e) => setLocalFilters(prev => ({ ...prev, timeScale: e.target.value }))}
-              disabled={isUpdating}
-            >
-              <option value="days">Dage</option>
-              <option value="weeks">Uger</option>
-              <option value="months">Måneder</option>
-              <option value="quarters">Kvartaler</option>
-              <option value="years">År</option>
-            </select>
-          </div>
+          {/* Removed Tidsinterval dropdown as it's only needed on charts */}
 
           <div className="mb-4">
             <label className="block mb-1">
@@ -198,11 +187,19 @@ const FilterSidebar = () => {
             >
               <React.Fragment>
                 <option key="all" value="all">Alle samtaletyper</option>
-                {Array.isArray(samtaletyper) && samtaletyper.map((type) => (
-                  <option key={`type-${type.samtyp_type}`} value={type.samtyp_type}>
-                    {type.ledetekst}
-                  </option>
-                ))}
+                {Array.isArray(samtaletyper) && samtaletyper.length > 0 ? (
+                  samtaletyper.map((type) => (
+                    <option key={`type-${type.samtyp_type}`} value={type.samtyp_type}>
+                      {type.samtyp_type}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="job1">job1</option>
+                    <option value="jobn">jobn</option>
+                    <option value="tele">tele</option>
+                  </>
+                )}
               </React.Fragment>
             </select>
           </div>

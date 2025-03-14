@@ -503,8 +503,8 @@ app.get('/api/samtaletyper', async (req, res) => {
     // Query to get distinct conversation types
     const query = `
       SELECT DISTINCT
-        samtyp_type as id,
-        samtyp_type as name
+        samtyp_type,
+        samtyp_type as ledetekst
       FROM ai_statistik WITH (NOLOCK)
       WHERE samtyp_type IS NOT NULL AND samtyp_type <> ''
       ORDER BY samtyp_type
