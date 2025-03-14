@@ -33,6 +33,9 @@ const SamtalerStatusDashboard = () => {
     return JSON.stringify(filters);
   }, [filters]);
 
+  // Track if filters have changed
+  const filtersChanged = useRef(false);
+
   // Combined useEffect for initial load and filter changes
   useEffect(() => {
     const fetchData = async () => {
@@ -48,8 +51,14 @@ const SamtalerStatusDashboard = () => {
             prev: prevFiltersRef.current,
             current: filters
           });
+          filtersChanged.current = true;
           await fetchDashboardData(filters);
           prevFiltersRef.current = {...filters};
+          
+          // Force a re-render after data is loaded
+          setTimeout(() => {
+            filtersChanged.current = false;
+          }, 100);
         }
       }
     };

@@ -147,11 +147,12 @@ app.get('/api/kpi-stats', async (req, res) => {
     console.log('Fetching KPI stats...');
     
     // Parse date parameters with proper format conversion
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, type } = req.query;
     
     // SQL query parameters
     let sqlParams = [];
     let dateFilter = '';
+    let typeFilter = '';
     
     // Process date filters
     if (startDate || endDate) {
@@ -203,6 +204,13 @@ app.get('/api/kpi-stats', async (req, res) => {
       }
     }
     
+    // Add type filter if present
+    if (type) {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
+    }
+    
     // Build the KPI stats query
     const query = `
       WITH TimeStats AS (
@@ -227,12 +235,12 @@ app.get('/api/kpi-stats', async (req, res) => {
           (
             SELECT TOP 1 samtyp_type
             FROM ai_statistik
-            WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
+            WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
             GROUP BY samtyp_type
             ORDER BY COUNT(*) DESC
           ) as most_frequent_type
         FROM ai_statistik WITH (NOLOCK)
-        WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
+        WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
       )
       SELECT
         thumbs_up as positiveFeedback,
@@ -279,15 +287,32 @@ app.get('/api/timeline-stats', async (req, res) => {
     if (!pool) await connectToDatabase();
     console.log('Fetching timeline stats...');
     
-    const interval = req.query.interval || 'day';
-    console.log(`Using interval: ${interval}`);
+    // Parse query parameters
+    const { startDate, endDate, interval, type } = req.query;
+    console.log('Timeline stats request params:', { startDate, endDate, interval, type });
     
-    // Parse date parameters with proper format conversion
-    const { startDate, endDate } = req.query;
+    // Determine the date format and group by clause based on interval
+    let dateFormat = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
+    let groupByClause = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
+    
+    if (interval === 'weeks') {
+      dateFormat = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
+      groupByClause = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
+    } else if (interval === 'months') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
+    } else if (interval === 'quarters') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), ((DATEPART(QUARTER, referat_godkendt_at) - 1) * 3) + 1, 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), ((DATEPART(QUARTER, referat_godkendt_at) - 1) * 3) + 1, 1)";
+    } else if (interval === 'years') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
+    }
     
     // SQL query parameters
     let sqlParams = [];
     let dateFilter = '';
+    let typeFilter = '';
     
     // Process date filters
     if (startDate || endDate) {
@@ -339,34 +364,11 @@ app.get('/api/timeline-stats', async (req, res) => {
       }
     }
     
-    // Build the timeline stats query based on the interval
-    let groupByClause;
-    let dateFormat;
-    
-    switch (interval) {
-      case 'day':
-        groupByClause = "CAST(referat_godkendt_at AS DATE)";
-        dateFormat = "CAST(referat_godkendt_at AS DATE)";
-        break;
-      case 'week':
-        groupByClause = "DATEPART(YEAR, referat_godkendt_at), DATEPART(WEEK, referat_godkendt_at)";
-        dateFormat = "DATEADD(DAY, 1-DATEPART(WEEKDAY, referat_godkendt_at), CAST(referat_godkendt_at AS DATE))";
-        break;
-      case 'month':
-        groupByClause = "DATEPART(YEAR, referat_godkendt_at), DATEPART(MONTH, referat_godkendt_at)";
-        dateFormat = "DATEFROMPARTS(DATEPART(YEAR, referat_godkendt_at), DATEPART(MONTH, referat_godkendt_at), 1)";
-        break;
-      case 'quarter':
-        groupByClause = "DATEPART(YEAR, referat_godkendt_at), DATEPART(QUARTER, referat_godkendt_at)";
-        dateFormat = "DATEFROMPARTS(DATEPART(YEAR, referat_godkendt_at), 1 + ((DATEPART(QUARTER, referat_godkendt_at) - 1) * 3), 1)";
-        break;
-      case 'year':
-        groupByClause = "DATEPART(YEAR, referat_godkendt_at)";
-        dateFormat = "DATEFROMPARTS(DATEPART(YEAR, referat_godkendt_at), 1, 1)";
-        break;
-      default:
-        groupByClause = "CAST(referat_godkendt_at AS DATE)";
-        dateFormat = "CAST(referat_godkendt_at AS DATE)";
+    // Add type filter if present
+    if (type) {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
     }
     
     // First, get all the records we need to process
@@ -377,7 +379,7 @@ app.get('/api/timeline-stats', async (req, res) => {
         referat,
         AI_Referat as aiReferat
       FROM ai_statistik WITH (NOLOCK)
-      WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
+      WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
     `;
     
     console.log('Executing records query:', recordsQuery);
@@ -433,7 +435,7 @@ app.get('/api/timeline-stats', async (req, res) => {
             ELSE NULL
           END), 0) as avg_time_to_approval
         FROM ai_statistik WITH (NOLOCK)
-        WHERE referat_godkendt_at IS NOT NULL ${dateFilter}
+        WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
         GROUP BY ${groupByClause}
       )
       SELECT

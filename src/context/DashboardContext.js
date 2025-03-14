@@ -103,8 +103,21 @@ export const DashboardProvider = ({ children }) => {
       }
 
       // Convert conversationType to type for API
-      formattedFilters.type = filters.conversationType;
+      if (filters.conversationType && filters.conversationType !== 'all') {
+        formattedFilters.type = filters.conversationType;
+      }
       formattedFilters.conversationType = undefined;
+
+      // Debug the API call
+      console.log('Fetching dashboard data with filters:', formattedFilters);
+
+      // Force a complete refresh of the state to trigger chart updates
+      setStatistics([]);
+      setTimelineData([]);
+      setKpis(defaultKPIs);
+      
+      // Add a small delay to ensure state is cleared before new data is set
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Fetch all required data
       const [kpiStats, timelineStats] = await Promise.all([

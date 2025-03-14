@@ -164,7 +164,8 @@ export const fetchKPIStats = async (filters = {}) => {
   try {
     const formattedFilters = {
       startDate: filters.startDate ? formatDateForUrl(filters.startDate) : null,
-      endDate: filters.endDate ? formatDateForUrl(filters.endDate) : null
+      endDate: filters.endDate ? formatDateForUrl(filters.endDate) : null,
+      type: filters.type || null
     };
 
     // Remove null/undefined values
@@ -214,7 +215,8 @@ export const fetchTimelineStats = async (filters = {}) => {
     const formattedFilters = {
       startDate: filters.startDate ? formatDateForUrl(filters.startDate) : null,
       endDate: filters.endDate ? formatDateForUrl(filters.endDate) : null,
-      interval: filters.timeScale || 'weeks' // Use timeScale from filters
+      interval: filters.timeScale || 'weeks',
+      type: filters.type || null
     };
 
     // Remove null/undefined values

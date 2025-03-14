@@ -95,6 +95,9 @@ const FilterSidebar = () => {
     // Create a new URLSearchParams object
     const queryParams = new URLSearchParams();
 
+    // Debug the filter application
+    console.log('Applying filters:', localFilters);
+
     // Only add parameters if they have values and aren't default values
     if (localFilters.startDate) {
       const formattedStartDate = formatDateForUrl(localFilters.startDate);
@@ -127,6 +130,14 @@ const FilterSidebar = () => {
       conversationType: localFilters.conversationType,
       timeScale: localFilters.timeScale
     });
+    
+    // Force a data refresh by saving to localStorage
+    localStorage.setItem('dashboardFilters', JSON.stringify({
+      startDate: localFilters.startDate ? formatDateForUrl(localFilters.startDate) : null,
+      endDate: localFilters.endDate ? formatDateForUrl(localFilters.endDate) : null,
+      conversationType: localFilters.conversationType,
+      timeScale: localFilters.timeScale
+    }));
     
     setIsSidebarOpen(false);
   };
