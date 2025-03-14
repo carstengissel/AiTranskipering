@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import ChartTooltip from '../ChartTooltip';
 import { useFilters } from '../../context/FilterContext';
 import { useDashboard } from '../../context/DashboardContext';
+import { useNavigate } from 'react-router-dom';
 import TimeScaleSelector from './TimeScaleSelector';
 import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
 
@@ -32,8 +33,18 @@ const calculateYAxisProps = (data) => {
 
 const FeedbackChart = memo(({ data }) => {
   const { filters } = useFilters();
-  const { isPending } = useDashboard();
+  const { isPending, fetchDashboardData } = useDashboard();
+  const navigate = useNavigate();
   const [timeScale, setTimeScale] = useState('weeks');
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const handleTimeScaleChange = (newScale) => {
+    console.log('Changing time scale to:', newScale);
+    setTimeScale(newScale);
+    
+    // Fetch new data with the updated time scale
+    fetchDashboardData({ timeScale: newScale });
+  };
 
   const groupedData = useMemo(() => {
     return groupDataByTimeScale(data, timeScale, 'date');
@@ -49,7 +60,7 @@ const FeedbackChart = memo(({ data }) => {
             title="Thumbs Up/Down Statistik"
             description="Viser fordelingen af positive og negative tilbagemeldinger over tid."
           />
-          <TimeScaleSelector value={timeScale} onChange={setTimeScale} />
+          <TimeScaleSelector value={timeScale} onChange={handleTimeScaleChange} />
         </div>
       </div>
       <div className="w-full h-[300px]">

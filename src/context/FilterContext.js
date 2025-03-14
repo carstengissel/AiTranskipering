@@ -49,22 +49,22 @@ export const FilterProvider = ({ children }) => {
     // Store current filters before resetting
     setPreviousFilters(filters);
 
-    // Reset all filters including any additional ones that might have been added
+    // Reset all filters except timeScale, which should be preserved
     const resetState = {
       startDate: null,
       endDate: null,
       conversationType: 'all',
       section: null,
       date: null,
-      timeScale: 'weeks'
+      timeScale: filters.timeScale || 'weeks' // Preserve the current timeScale
     };
 
     // Use startTransition for the state update and data fetch
     startTransition(() => {
       // Keep current filters visible while fetching new data
       setFilters(resetState);
-      // Fetch fresh data with no filters
-      fetchDashboardData({}, true);
+      // Fetch fresh data with just the timeScale preserved
+      fetchDashboardData({ timeScale: resetState.timeScale }, true);
     });
 
     // Clear URL parameters

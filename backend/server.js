@@ -216,7 +216,9 @@ app.get('/api/kpi-stats', async (req, res) => {
       WITH TimeStats AS (
         SELECT
           ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as thumbs_up,        
-          ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as thumbs_down,     
+          ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as thumbs_down,
+          ISNULL(SUM(CASE WHEN feedback IS NULL THEN 1 ELSE 0 END), 0) as no_feedback,
+          COUNT(*) as total_conversations,
           ISNULL(AVG(CASE
             WHEN transcription_recieved_at IS NOT NULL AND ai_referat_recieved_at IS NOT NULL
             AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) > 0 
@@ -231,7 +233,6 @@ app.get('/api/kpi-stats', async (req, res) => {
             THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
             ELSE NULL
           END), 0) as avg_time_to_approval,
-          COUNT(*) as total_conversations,
           (
             SELECT TOP 1 samtyp_type
             FROM ai_statistik
@@ -240,14 +241,15 @@ app.get('/api/kpi-stats', async (req, res) => {
             ORDER BY COUNT(*) DESC
           ) as most_frequent_type
         FROM ai_statistik WITH (NOLOCK)
-        WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
+        WHERE 1=1 ${dateFilter} ${typeFilter}
       )
       SELECT
         thumbs_up as positiveFeedback,
         thumbs_down as negativeFeedback,
+        no_feedback as noFeedback,
+        total_conversations as totalCount,
         avg_time_to_ai_report as avgTimeToAiReport,
         avg_time_to_approval as avgTimeToApproval,
-        total_conversations as totalCount,
         ISNULL(most_frequent_type, 'N/A') as mostFrequentType
       FROM TimeStats
     `;
@@ -270,9 +272,10 @@ app.get('/api/kpi-stats', async (req, res) => {
     res.json(result.recordset[0] || {
       positiveFeedback: 0,
       negativeFeedback: 0,
+      noFeedback: 0,
+      totalCount: 0,
       avgTimeToAiReport: 0,
       avgTimeToApproval: 0,
-      totalCount: 0,
       mostFrequentType: "N/A"
     });
   } catch (err) {
@@ -295,7 +298,11 @@ app.get('/api/timeline-stats', async (req, res) => {
     let dateFormat = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
     let groupByClause = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
     
-    if (interval === 'weeks') {
+    if (interval === 'days') {
+      // For days, use the exact date without any grouping
+      dateFormat = "CAST(referat_godkendt_at AS DATE)";
+      groupByClause = "CAST(referat_godkendt_at AS DATE)";
+    } else if (interval === 'weeks') {
       dateFormat = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
       groupByClause = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
     } else if (interval === 'months') {
@@ -308,6 +315,9 @@ app.get('/api/timeline-stats', async (req, res) => {
       dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
       groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
     }
+    
+    console.log('Determined date format:', dateFormat);
+    console.log('Determined group by clause:', groupByClause);
     
     // SQL query parameters
     let sqlParams = [];
@@ -379,7 +389,7 @@ app.get('/api/timeline-stats', async (req, res) => {
         referat,
         AI_Referat as aiReferat
       FROM ai_statistik WITH (NOLOCK)
-      WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
+      WHERE 1=1 ${dateFilter} ${typeFilter}
     `;
     
     console.log('Executing records query:', recordsQuery);
@@ -398,6 +408,17 @@ app.get('/api/timeline-stats', async (req, res) => {
     
     // Process records to calculate section changes
     const processedRecords = recordsResult.recordset.map(record => {
+      // Skip records without both AI referat and approved referat
+      if (!record.aiReferat || !record.referat) {
+        return {
+          ...record,
+          viHarAftaltChanges: 0,
+          viHarIDagTaltOmChanges: 0,
+          dinJobsogningIndtilNuChanges: 0,
+          uaendredeSektioner: 0
+        };
+      }
+      
       // Calculate changes for each section using diffWords
       const viHarAftaltChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarAftalt');
       const viHarIDagTaltOmChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarIDagTaltOm');
@@ -411,6 +432,8 @@ app.get('/api/timeline-stats', async (req, res) => {
         uaendredeSektioner: (viHarAftaltChanges === 0 && viHarIDagTaltOmChanges === 0 && dinJobsogningIndtilNuChanges === 0) ? 1 : 0
       };
     });
+    
+    console.log('Processed records:', processedRecords);
     
     // Now get the basic stats from the database
     const statsQuery = `
@@ -435,7 +458,7 @@ app.get('/api/timeline-stats', async (req, res) => {
             ELSE NULL
           END), 0) as avg_time_to_approval
         FROM ai_statistik WITH (NOLOCK)
-        WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
+        WHERE 1=1 ${dateFilter} ${typeFilter}
         GROUP BY ${groupByClause}
       )
       SELECT
@@ -464,11 +487,52 @@ app.get('/api/timeline-stats', async (req, res) => {
     
     // Combine the stats with the processed section changes
     const combinedResults = statsResult.recordset.map(stat => {
-      // Find all records for this date
+      // Find all records for this date, accounting for different interval groupings
       const dateRecords = processedRecords.filter(record => {
-        const recordDate = new Date(record.date).toISOString().split('T')[0];
-        const statDate = new Date(stat.date).toISOString().split('T')[0];
-        return recordDate === statDate;
+        // For days, we need exact date matching
+        if (interval === 'days') {
+          const recordDate = new Date(record.date).toISOString().split('T')[0];
+          const statDate = new Date(stat.date).toISOString().split('T')[0];
+          return recordDate === statDate;
+        } 
+        // For weeks, we need to match the week
+        else if (interval === 'weeks') {
+          const recordDate = new Date(record.date);
+          const statDate = new Date(stat.date);
+          
+          // Get the week start date (Monday) for both dates
+          const recordWeekStart = new Date(recordDate);
+          recordWeekStart.setDate(recordDate.getDate() - recordDate.getDay() + (recordDate.getDay() === 0 ? -6 : 1));
+          recordWeekStart.setHours(0, 0, 0, 0);
+          
+          const statWeekStart = new Date(statDate);
+          statWeekStart.setDate(statDate.getDate() - statDate.getDay() + (statDate.getDay() === 0 ? -6 : 1));
+          statWeekStart.setHours(0, 0, 0, 0);
+          
+          return recordWeekStart.getTime() === statWeekStart.getTime();
+        }
+        // For months, quarters, and years, match by the stat date
+        else {
+          const recordDate = new Date(record.date);
+          const statDate = new Date(stat.date);
+          
+          if (interval === 'months') {
+            return recordDate.getFullYear() === statDate.getFullYear() && 
+                   recordDate.getMonth() === statDate.getMonth();
+          } else if (interval === 'quarters') {
+            const recordQuarter = Math.floor(recordDate.getMonth() / 3);
+            const statQuarter = Math.floor(statDate.getMonth() / 3);
+            return recordDate.getFullYear() === statDate.getFullYear() && 
+                   recordQuarter === statQuarter;
+          } else if (interval === 'years') {
+            return recordDate.getFullYear() === statDate.getFullYear();
+          }
+          
+          // Default fallback to exact date matching
+          const recordDateStr = new Date(record.date).toISOString().split('T')[0];
+          const statDateStr = new Date(stat.date).toISOString().split('T')[0];
+          return recordDateStr === statDateStr;
+        }
       });
       
       // Calculate section changes for this date
@@ -573,7 +637,7 @@ app.get('/api/samind_referat', async (req, res) => {
       if (date) {
         const formattedDate = formatDateForSQL(date);
         if (formattedDate) {
-          dateFilter = "CAST(referat_godkendt_at AS DATE) = @date";
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) = @date";
           sqlParams.push({ name: 'date', type: sql.Date, value: formattedDate });
           console.log('Filtering by specific date:', formattedDate);
         }
@@ -583,12 +647,12 @@ app.get('/api/samind_referat', async (req, res) => {
         const formattedEndDate = formatDateForSQL(endDate);
         
         if (formattedStartDate && formattedEndDate) {
-          dateFilter = "CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
           sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
           sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
           console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
         } else if (formattedStartDate) {
-          dateFilter = "CAST(referat_godkendt_at AS DATE) >= @startDate";
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
           sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
           console.log('Filtering by start date:', formattedStartDate);
         } else if (formattedEndDate) {
@@ -602,18 +666,18 @@ app.get('/api/samind_referat', async (req, res) => {
     // Add type filter if present
     let typeFilter = '';
     if (type) {
-      typeFilter = "samtyp_type = @type";
+      typeFilter = "AND samtyp_type = @type";
       sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
       console.log('Filtering by type:', type);
     }
     
     // Build the WHERE clause
-    let whereClause = "WHERE referat_godkendt_at IS NOT NULL";
+    let whereClause = "WHERE 1=1"; // Always true condition to start the WHERE clause
     if (dateFilter) {
-      whereClause += ` AND ${dateFilter}`;
+      whereClause += ` ${dateFilter}`; // Note: dateFilter already includes AND
     }
     if (typeFilter) {
-      whereClause += ` AND ${typeFilter}`;
+      whereClause += ` ${typeFilter}`; // Note: typeFilter already includes AND
     }
     
     // Build the final query

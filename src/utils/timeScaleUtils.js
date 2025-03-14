@@ -143,6 +143,10 @@ export const groupDataByTimeScale = (data, scale = 'weeks', dateAccessor = 'date
       // Calculate period end based on scale
       let periodEnd;
       switch (scale) {
+        case 'days':
+          // For days, the period is just the single day
+          periodEnd = endOfDay(periodStart);
+          break;
         case 'weeks':
           periodEnd = addDays(periodStart, 6); // End on Sunday
           break;

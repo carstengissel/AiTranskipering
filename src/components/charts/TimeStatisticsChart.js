@@ -8,7 +8,7 @@ import { groupDataByTimeScale } from '../../utils/timeScaleUtils';
 
 const TimeStatisticsChart = memo(({ data, onChartClick }) => {
   const { filters } = useFilters();
-  const { isPending } = useDashboard();
+  const { isPending, fetchDashboardData } = useDashboard();
   const [timeScale, setTimeScale] = useState('weeks');
   const [error, setError] = useState(null);
 
@@ -61,6 +61,15 @@ const TimeStatisticsChart = memo(({ data, onChartClick }) => {
       return 100;
     }
   }, [groupedData]);
+
+  // Handle time scale change
+  const handleTimeScaleChange = (newScale) => {
+    console.log('Changing time scale to:', newScale);
+    setTimeScale(newScale);
+    
+    // Fetch new data with the updated time scale
+    fetchDashboardData({ timeScale: newScale });
+  };
 
   // If no data or error, return a placeholder or message
   if (error) {
@@ -134,7 +143,7 @@ const TimeStatisticsChart = memo(({ data, onChartClick }) => {
             title="Gns. Tidstatistik"
             description="Viser gennemsnitlig tid brugt på forskellige dele af processen. 'Tid til godkendelse' er tiden fra AI-referat til godkendelse, mens 'Tid fra transskription til AI-referat' viser behandlingstiden."
           />
-          <TimeScaleSelector value={timeScale} onChange={setTimeScale} />
+          <TimeScaleSelector value={timeScale} onChange={handleTimeScaleChange} />
         </div>
         <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
           <p className="text-sm text-gray-600">Samtaler denne {getPeriodLabel()}</p>

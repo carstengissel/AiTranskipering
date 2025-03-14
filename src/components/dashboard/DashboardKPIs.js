@@ -15,10 +15,14 @@ const DashboardKPIs = () => {
 
   if (!kpis) return null;
 
-  // Calculate percentages
-  const totalFeedback = kpis.positiveFeedback + kpis.negativeFeedback;
-  const positivePercentage = totalFeedback > 0 ? ((kpis.positiveFeedback / totalFeedback) * 100).toFixed(2) : "0.00";
-  const negativePercentage = totalFeedback > 0 ? ((kpis.negativeFeedback / totalFeedback) * 100).toFixed(2) : "0.00";
+  // Calculate percentages based on total conversations, not just feedback
+  const totalConversations = kpis.totalCount || 0;
+  const positivePercentage = totalConversations > 0 
+    ? ((kpis.positiveFeedback / totalConversations) * 100).toFixed(2) 
+    : "0.00";
+  const negativePercentage = totalConversations > 0 
+    ? ((kpis.negativeFeedback / totalConversations) * 100).toFixed(2) 
+    : "0.00";
 
   return (
     <div className="flex flex-wrap gap-2 mb-4">

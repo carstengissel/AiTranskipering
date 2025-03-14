@@ -30,10 +30,19 @@ const LoadingOverlay = () => (
  * Allows filtering by clicking on bars
  */
 const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
-  const { isPending } = useDashboard();
+  const { isPending, fetchDashboardData } = useDashboard();
   const navigate = useNavigate();
   const [timeScale, setTimeScale] = useState('weeks');
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Handle time scale change
+  const handleTimeScaleChange = (newScale) => {
+    console.log('Changing time scale to:', newScale);
+    setTimeScale(newScale);
+    
+    // Fetch new data with the updated time scale
+    fetchDashboardData({ timeScale: newScale });
+  };
 
   // Ensure we only show real data
   const processedData = useMemo(() => {
@@ -165,10 +174,7 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
           />
           <TimeScaleSelector
             value={timeScale}
-            onChange={(newScale) => {
-              setTimeScale(newScale);
-              setSelectedDate(null);
-            }}
+            onChange={handleTimeScaleChange}
           />
         </div>
         <div className="text-lg font-semibold">
