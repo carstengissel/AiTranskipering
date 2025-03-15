@@ -110,28 +110,75 @@ const ReportDetail = ({
   const humanParsedReferat = parseReferat(report.referat);
   const aiParsedReferat = parseReferat(report.aiReferat);
 
-  // Calculate section change percentage using word-level comparison
+  // // Calculate section change percentage using word-level comparison
+  // const calculateSectionPercentage = (section) => {
+  //   console.log('Calculating section percentage for:', section);
+  //   const aiText = aiParsedReferat[section].join('\n');
+  //   const humanText = humanParsedReferat[section].join('\n');
+    
+  //   if (!humanText.trim()) return 0;
+    
+  //   // Use diffWords to get word-level changes
+  //   const diff = diffWords(aiText, humanText);
+    
+  //   // Count changed words (added or removed)
+  //   const changedWords = diff.filter(part => part.added || part.removed).length;
+    
+  //   // Count total words in human text
+  //   const totalWords = humanText.trim().split(/\s+/).length;
+    
+  //   // Calculate percentage
+  //   const percentage = Math.min(100, Math.round((changedWords / totalWords) * 25));
+  //   console.log('Word changes:', changedWords, 'out of', totalWords, 'words');
+  //   console.log('Calculated percentage:', `${percentage}%`, `(${changedWords} / ${totalWords} * 25)`);
+  //   return percentage;
+  // };
+
+
+  // Calculate section change percentage using character-level comparison
   const calculateSectionPercentage = (section) => {
-    console.log('Calculating section percentage for:', section);
     const aiText = aiParsedReferat[section].join('\n');
     const humanText = humanParsedReferat[section].join('\n');
     
     if (!humanText.trim()) return 0;
     
-    // Use diffWords to get word-level changes
-    const diff = diffWords(aiText, humanText);
+    // Convert texts to character arrays
+    const aiChars = Array.from(aiText);
+    const humanChars = Array.from(humanText);
     
-    // Count changed words (added or removed)
-    const changedWords = diff.filter(part => part.added || part.removed).length;
+    let changes = 0;
+    let consecutiveChanges = 0;
+    let i = 0;
+    let j = 0;
     
-    // Count total words in human text
-    const totalWords = humanText.trim().split(/\s+/).length;
+    // Compare characters to count changes
+    while (i < humanChars.length || j < aiChars.length) {
+      if (i >= humanChars.length) {
+        changes += aiChars.length - j;
+        break;
+      }
+      if (j >= aiChars.length) {
+        changes += humanChars.length - i;
+        break;
+      }
+      
+      if (humanChars[i] !== aiChars[j]) {
+        consecutiveChanges++;
+        changes++;
+        i++;
+        j++;
+      } else {
+        if (consecutiveChanges < 3) {
+          changes -= consecutiveChanges;
+        }
+        consecutiveChanges = 0;
+        i++;
+        j++;
+      }
+    }
     
-    // Calculate percentage
-    const percentage = Math.min(100, Math.round((changedWords / totalWords) * 25));
-    console.log('Word changes:', changedWords, 'out of', totalWords, 'words');
-    console.log('Calculated percentage:', `${percentage}%`, `(${changedWords} / ${totalWords} * 25)`);
-    return percentage;
+    // Calculate percentage and scale down by 0.25 to match card view
+    return Math.min(100, Math.round((changes / humanChars.length) * 25));
   };
 
   // Calculate the average percentage for verification
