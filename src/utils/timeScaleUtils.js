@@ -1,7 +1,9 @@
 import {
   startOfDay,
   endOfDay,
+  getDay,
   startOfWeek,
+  getISOWeek,
   startOfMonth,
   endOfMonth,
   startOfQuarter,
@@ -13,6 +15,20 @@ import {
   isValid
 } from 'date-fns';
 import { da } from 'date-fns/locale';
+
+// Custom function to calculate week number matching SQL Server's behavior
+const getWeekNumber = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+};
+
+const getWeekStart = (date) => {
+  const d = new Date(date);
+  return new Date(d.setDate(d.getDate() - (getDay(d) + 6) % 7));
+};
 
 /**
  * Get start of period for a given date and time scale
@@ -38,7 +54,7 @@ const getStartOfPeriod = (date, scale) => {
       case 'days':
         return startOfDay(dateObj);
       case 'weeks':
-        return startOfWeek(dateObj, { weekStartsOn: 1 }); // Week starts on Monday
+        return startOfDay(getWeekStart(dateObj)); // Use custom week calculation
       case 'months':
         return startOfMonth(dateObj);
       case 'quarters':
@@ -78,7 +94,7 @@ const formatPeriod = (date, scale) => {
       case 'days':
         return format(dateObj, 'd MMM yyyy', { locale: da });
       case 'weeks':
-        return `Uge ${format(dateObj, 'w yyyy', { locale: da })}`;
+        return `Uge ${getWeekNumber(dateObj)} ${format(dateObj, 'yyyy', { locale: da })}`;
       case 'months':
         return format(dateObj, 'MMM yyyy', { locale: da });
       case 'quarters':

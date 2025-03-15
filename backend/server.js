@@ -303,8 +303,8 @@ app.get('/api/timeline-stats', async (req, res) => {
       dateFormat = "CAST(referat_godkendt_at AS DATE)";
       groupByClause = "CAST(referat_godkendt_at AS DATE)";
     } else if (interval === 'weeks') {
-      dateFormat = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
-      groupByClause = "DATEADD(DAY, -DATEPART(WEEKDAY, referat_godkendt_at) + 1, CAST(referat_godkendt_at AS DATE))";
+      dateFormat = "DATEADD(DAY, -(DATEPART(WEEKDAY, referat_godkendt_at) + 5) % 7, CAST(referat_godkendt_at AS DATE))";
+      groupByClause = "DATEADD(DAY, -(DATEPART(WEEKDAY, referat_godkendt_at) + 5) % 7, CAST(referat_godkendt_at AS DATE))";
     } else if (interval === 'months') {
       dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
       groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
