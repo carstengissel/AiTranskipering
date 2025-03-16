@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const sql = require('mssql');
 const { diffWords } = require('diff');
+const path = require('path');
 require('dotenv').config();
 
 // Database config
@@ -841,6 +842,18 @@ app.get('/api/samind_referat', async (req, res) => {
     console.error('Error fetching samind referat:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
+});
+
+// Serve static files from the build folder for IIS deployment
+// This must be placed after all API routes
+const buildPath = path.join(__dirname, 'build');
+app.use(express.static(buildPath));
+console.log(`Serving static files from: ${buildPath}`);
+
+// Handle client-side routing for IIS deployment
+// This must be placed after all API routes and static file serving
+app.get('*', (req, res) => {
+  res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 // Start the server
