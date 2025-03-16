@@ -387,7 +387,8 @@ app.get('/api/timeline-stats', async (req, res) => {
         lbnr,
         ${dateFormat} as date,
         referat,
-        AI_Referat as aiReferat
+        AI_Referat as aiReferat,
+        samtyp_type
       FROM ai_statistik WITH (NOLOCK)
       WHERE 1=1 ${dateFilter} ${typeFilter}
     `;
@@ -541,16 +542,30 @@ app.get('/api/timeline-stats', async (req, res) => {
       const dinJobsogningIndtilNu = dateRecords.reduce((sum, record) => sum + record.dinJobsogningIndtilNuChanges, 0);
       const uaendredeSektioner = dateRecords.reduce((sum, record) => sum + record.uaendredeSektioner, 0);
       
+      // Extract conversation types from the records for this date
+      const conversationTypes = {};
+      dateRecords.forEach(record => {
+        if (record.samtyp_type) {
+          conversationTypes[record.samtyp_type] = (conversationTypes[record.samtyp_type] || 0) + 1;
+        }
+      });
+      
+      console.log(`Date: ${stat.date}, Records: ${dateRecords.length}, Conversation Types:`, conversationTypes);
+      
       return {
         ...stat,
         viHarAftalt,
         viHarIDagTaltOm,
         dinJobsogningIndtilNu,
-        uaendredeSektioner
+        uaendredeSektioner,
+        conversationTypes: Object.keys(conversationTypes),
+        conversationTypeCounts: conversationTypes,
+        count: dateRecords.length
       };
     });
     
     console.log(`Found ${combinedResults.length} timeline records`);
+    console.log('Sample of combined results:', combinedResults.slice(0, 2));
     
     // Send the results
     res.json(combinedResults);
@@ -586,6 +601,111 @@ app.get('/api/samtaletyper', async (req, res) => {
     res.json(result.recordset);
   } catch (err) {
     console.error('Error fetching samtaletyper:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Samtaletyper counts endpoint
+app.get('/api/samtaletyper/counts', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching samtaletyper counts...');
+    
+    // Parse query parameters
+    const { startDate, endDate, type } = req.query;
+    console.log('Samtaletyper counts request params:', { startDate, endDate, type });
+    
+    // SQL query parameters
+    let sqlParams = [];
+    let dateFilter = '';
+    let typeFilter = '';
+    
+    // Process date filters
+    if (startDate || endDate) {
+      // Function to convert DD.MM.YYYY to YYYY-MM-DD format
+      const formatDateForSQL = (dateStr) => {
+        if (!dateStr) return null;
+        
+        // If date is already in DD.MM.YYYY format, convert it
+        if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+          const [day, month, year] = dateStr.split('.');
+          return `${year}-${month}-${day}`;
+        }
+        
+        // If date is in YYYY-MM-DD format, use as is
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr;
+        }
+        
+        // Otherwise, try to parse the date
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+        
+        return null;
+      };
+      
+      // Process date range (startDate and endDate)
+      const formattedStartDate = formatDateForSQL(startDate);
+      const formattedEndDate = formatDateForSQL(endDate);
+      
+      if (formattedStartDate && formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
+      } else if (formattedStartDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        console.log('Filtering by start date:', formattedStartDate);
+      } else if (formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by end date:', formattedEndDate);
+      }
+    }
+    
+    // Add type filter if present
+    if (type && type !== 'all') {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
+    }
+    
+    // Query to get conversation type counts
+    const query = `
+      SELECT
+        samtyp_type,
+        COUNT(*) as count
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE samtyp_type IS NOT NULL AND samtyp_type <> '' ${dateFilter} ${typeFilter}
+      GROUP BY samtyp_type
+      ORDER BY COUNT(*) DESC
+    `;
+    
+    console.log('Executing samtaletyper counts query:', query);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query
+    const request = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      request.input(param.name, param.type, param.value);
+    });
+    
+    const result = await request.query(query);
+    console.log(`Found ${result.recordset.length} samtaletyper counts:`, result.recordset);
+    
+    // Send the results
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching samtaletyper counts:', err);
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 });

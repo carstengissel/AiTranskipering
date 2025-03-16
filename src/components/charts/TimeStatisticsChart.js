@@ -145,10 +145,10 @@ const TimeStatisticsChart = memo(({ data, onChartClick }) => {
           />
           <TimeScaleSelector value={timeScale} onChange={handleTimeScaleChange} />
         </div>
-        <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
+        {/* <div className="bg-gray-100 p-2 rounded-lg shadow-sm">
           <p className="text-sm text-gray-600">Samtaler denne {getPeriodLabel()}</p>
           <p className="text-xl font-semibold text-gray-800">{currentPeriodCount}</p>
-        </div>
+        </div> */}
       </div>
       <div className="w-full h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
