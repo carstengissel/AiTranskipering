@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useDashboard } from '../../context/DashboardContext';
 import { useFilters } from '../../context/FilterContext';
 import DashboardHeader from './DashboardHeader';
@@ -17,6 +17,7 @@ import { formatDateForUrl } from '../conversation/utils/dateUtils';
 
 const SamtalerStatusDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     statistics,
     isLoading,
@@ -27,6 +28,7 @@ const SamtalerStatusDashboard = () => {
   const { updateFilters, filters, resetFilters, setIsSidebarOpen } = useFilters();
   const isInitialMount = useRef(true);
   const prevFiltersRef = useRef(filters);
+  const hasRestoredFilters = useRef(false);
 
   // Memoize the current filters to compare with previous
   const currentFilters = useMemo(() => {
@@ -42,11 +44,40 @@ const SamtalerStatusDashboard = () => {
       if (isInitialMount.current) {
         console.log('Initial dashboard data fetch...');
         isInitialMount.current = false;
+        
+        // Check if we have stored filters in localStorage
+        try {
+          const storedFiltersData = localStorage.getItem('dashboardFilters');
+          if (storedFiltersData) {
+            const { filters: storedFilters, timestamp } = JSON.parse(storedFiltersData);
+            
+            // Check if filters are still valid (not older than 30 minutes)
+            const currentTime = new Date().getTime();
+            const timeDifference = currentTime - timestamp;
+            const maxAge = 30 * 60 * 1000; // 30 minutes
+            
+            if (timeDifference < maxAge && storedFilters) {
+              console.log('Restoring filters from localStorage:', storedFilters);
+              // Update filters without triggering a fetch
+              updateFilters(storedFilters);
+              // Fetch data with the restored filters
+              await fetchDashboardData(storedFilters, true);
+              prevFiltersRef.current = {...storedFilters};
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring filters from localStorage:', error);
+        }
+        
+        // If no stored filters or they're invalid, fetch with default filters
         await fetchDashboardData({}, true);
       } else {
         // Compare stringified filters to detect real changes
         const prevFiltersStr = JSON.stringify(prevFiltersRef.current);
-        if (currentFilters !== prevFiltersStr) {
+        const currentFiltersStr = JSON.stringify(filters);
+        
+        if (currentFiltersStr !== prevFiltersStr) {
           console.log('Filters changed, fetching new data...', {
             prev: prevFiltersRef.current,
             current: filters
@@ -64,7 +95,89 @@ const SamtalerStatusDashboard = () => {
     };
 
     fetchData();
-  }, [currentFilters, fetchDashboardData, filters]);
+  }, [currentFilters, fetchDashboardData, filters, updateFilters]);
+
+  // Check if we're returning from the conversation summary page
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const returnToStats = searchParams.get('returnToStats') === 'true';
+    
+    console.log('Checking for return to stats:', { 
+      returnToStats, 
+      hasRestoredFilters: hasRestoredFilters.current,
+      searchParams: Object.fromEntries(searchParams.entries())
+    });
+    
+    if (returnToStats && !hasRestoredFilters.current) {
+      try {
+        // Get the stored column data from localStorage
+        const storedColumnData = localStorage.getItem('selectedChartColumn');
+        console.log('Retrieved stored column data:', storedColumnData);
+        
+        if (storedColumnData) {
+          const columnData = JSON.parse(storedColumnData);
+          console.log('Parsed column data:', columnData);
+          
+          // Check if the data is still valid (not older than 30 minutes)
+          const currentTime = new Date().getTime();
+          const storedTime = columnData.timestamp || 0;
+          const timeDifference = currentTime - storedTime;
+          const maxAge = 30 * 60 * 1000; // 30 minutes in milliseconds
+          
+          if (timeDifference < maxAge) {
+            console.log('Restoring filters from previous session:', columnData);
+            
+            // Create the filter object
+            const restoredFilters = {
+              startDate: columnData.formattedStartDate,
+              endDate: columnData.formattedEndDate,
+              section: null,
+              conversationType: 'all',
+              timeScale: columnData.timeScale || 'weeks'
+            };
+            
+            console.log('Applying restored filters:', restoredFilters);
+            
+            // Update filters in context
+            updateFilters(restoredFilters);
+            
+            // Open the sidebar to show the filters
+            setIsSidebarOpen(true);
+            
+            // Fetch dashboard data with the restored filters
+            // This is crucial to actually apply the filters to the chart
+            setTimeout(() => {
+              console.log('Fetching dashboard data with restored filters');
+              fetchDashboardData(restoredFilters);
+              
+              // Store these filters in localStorage for persistence
+              localStorage.setItem('dashboardFilters', JSON.stringify({
+                filters: restoredFilters,
+                timestamp: new Date().getTime()
+              }));
+            }, 100);
+            
+            // Set the selected date in the chart component
+            if (columnData.date) {
+              localStorage.setItem('selectedDate', columnData.date);
+            }
+          } else {
+            console.log('Stored column data is too old, not restoring filters');
+          }
+        } else {
+          console.log('No stored column data found in localStorage');
+        }
+        
+        // Clean up the URL by removing the returnToStats parameter
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } catch (error) {
+        console.error('Error restoring filters:', error);
+      }
+      
+      hasRestoredFilters.current = true;
+    }
+  }, [location.search, updateFilters, setIsSidebarOpen, fetchDashboardData]);
 
   const handleChartClick = useCallback((data) => {
     if (!data || !data.date) {
@@ -125,7 +238,7 @@ const SamtalerStatusDashboard = () => {
     } catch (error) {
       console.error('Error handling chart click:', error);
     }
-  }, [updateFilters]);
+  }, [updateFilters, setIsSidebarOpen]);
 
   const handleNavigateToDetails = useCallback(() => {
     // Format the current filters for URL parameters

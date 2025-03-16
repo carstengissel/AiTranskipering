@@ -26,6 +26,8 @@ export const FilterProvider = ({ children }) => {
   const updateFilters = useCallback((newFilters) => {
     setPreviousFilters(filters); // Store current filters before updating
 
+    console.log('Updating filters with:', newFilters);
+
     startTransition(() => {
       setFilters(prev => {
         // Only update if there are actual changes
@@ -34,16 +36,33 @@ export const FilterProvider = ({ children }) => {
         );
         
         if (hasChanges) {
+          console.log('Filter changes detected, applying new filters');
+          
+          // Create the updated filter object
+          const updatedFilters = { ...prev, ...newFilters };
+          
+          // Store the updated filters in localStorage for persistence
+          try {
+            localStorage.setItem('dashboardFilters', JSON.stringify({
+              filters: updatedFilters,
+              timestamp: new Date().getTime()
+            }));
+            console.log('Saved filters to localStorage:', updatedFilters);
+          } catch (error) {
+            console.error('Error saving filters to localStorage:', error);
+          }
+          
           // Keep current filters visible while fetching new data
-          fetchDashboardData(newFilters);
+          // We'll let the component handle the data fetching to avoid circular dependencies
+          
           // Open the sidebar when filters are applied
           setIsSidebarOpen(true);
-          return { ...prev, ...newFilters };
+          return updatedFilters;
         }
         return prev;
       });
     });
-  }, [filters, fetchDashboardData]);
+  }, [filters]);
 
   const resetFilters = useCallback(() => {
     // Store current filters before resetting

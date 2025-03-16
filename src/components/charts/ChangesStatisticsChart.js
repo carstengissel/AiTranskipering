@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useEffect } from 'react';
 import { BarChart, XAxis, YAxis, Bar, ResponsiveContainer, Tooltip } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import ChartTooltip from '../ChartTooltip';
@@ -34,6 +34,30 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
   const navigate = useNavigate();
   const [timeScale, setTimeScale] = useState('weeks');
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Restore selected date from localStorage when component mounts
+  useEffect(() => {
+    try {
+      // Check if there's a stored selected date
+      const storedDate = localStorage.getItem('selectedDate');
+      if (storedDate) {
+        setSelectedDate(storedDate);
+        // Remove the item after restoring to avoid persisting it indefinitely
+        localStorage.removeItem('selectedDate');
+      }
+      
+      // Also check if we need to restore the time scale
+      const storedColumnData = localStorage.getItem('selectedChartColumn');
+      if (storedColumnData) {
+        const columnData = JSON.parse(storedColumnData);
+        if (columnData.timeScale) {
+          setTimeScale(columnData.timeScale);
+        }
+      }
+    } catch (error) {
+      console.error('Error restoring selected date:', error);
+    }
+  }, []);
 
   // Handle time scale change
   const handleTimeScaleChange = (newScale) => {
@@ -128,6 +152,18 @@ const ChangesStatisticsChart = memo(({ data, onChartClick }) => {
       
       // Set selected date for visual feedback
       setSelectedDate(data.payload.date);
+      
+      // Store the selected column data in localStorage
+      const columnData = {
+        date: data.payload.date,
+        formattedStartDate,
+        formattedEndDate,
+        timeScale,
+        timestamp: new Date().getTime()
+      };
+      
+      console.log('Storing column data in localStorage:', columnData);
+      localStorage.setItem('selectedChartColumn', JSON.stringify(columnData));
       
       // Call the onChartClick prop with the formatted dates and timeScale
       onChartClick({
