@@ -23,12 +23,12 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "set PORT=83 && react-scripts start",
+    "start": "set PORT=84 && react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "server": "set PORT=3002 && node backend/server.js",
-    "debug": "set PORT=3002 && nodemon --inspect backend/server.js",
+    "server": "set PORT=3003 && node backend/server.js",
+    "debug": "set PORT=3003 && nodemon --inspect backend/server.js",
     "dev": "concurrently \"npm run debug\" \"npm run start\"",
     "run:app": "concurrently \"npm run server\" \"npm run start\"",
     "build:iis": "npm run build && node build.js"

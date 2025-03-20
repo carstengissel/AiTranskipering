@@ -1,304 +1,915 @@
-require('dotenv').config({ path: __dirname + '/.env' });
 const express = require('express');
-const sql = require('mssql');
 const cors = require('cors');
+const sql = require('mssql');
+const { diffWords } = require('diff');
 const path = require('path');
+require('dotenv').config();
+
+// Database config
+// const dbConfig = {
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASSWORD,
+//   server: process.env.DB_SERVER,
+//   database: process.env.DB_NAME,
+//   options: {
+//     encrypt: true,
+//     trustServerCertificate: true
+//   }
+// };
+const dbConfig = {
+  user: 'fiksliste',
+  password: 'Fiksliste2',
+  server: 'prd-bi2',
+  database: 'Fiksanalysedb',
+  options: {
+      encrypt: true,
+      trustServerCertificate: true
+  }
+};
 
 const app = express();
 
-// Force development mode
-process.env.NODE_ENV = 'development';
-
-// Debug environment variables
-console.log('Environment variables:', {
-    NODE_ENV: process.env.NODE_ENV,
-    DB_USER: process.env.DB_USER,
-    DB_SERVER: process.env.DB_SERVER,
-    DB_NAME: process.env.DB_NAME,
-    DEV_FRONTEND_PORT: process.env.DEV_FRONTEND_PORT,
-    DEV_FRONTEND_PORT_ALT: process.env.DEV_FRONTEND_PORT_ALT,
-    PORT: process.env.PORT
-});
-
-// Configure CORS based on environment
-const isDevelopment = process.env.NODE_ENV === 'development';
-const corsOrigins = isDevelopment 
-    ? [
-        'http://localhost:83',
-        'http://localhost:3002',
-        'http://localhost:3000',
-        'http://localhost:3003'
-      ]
-    : [process.env.PROD_URL];
-
-console.log(`Running in ${isDevelopment ? 'development' : 'production'} mode`);
-console.log('CORS origins:', corsOrigins);
-
-app.use(cors({
-    origin: corsOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, '..', 'build')));
-
-// Database configuration from environment variables
-const config = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_NAME,
-    options: {
-        encrypt: true,
-        trustServerCertificate: true
+// CORS setup
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:84',
+      'http://localhost:85',
+      'http://localhost:83',
+      'http://localhost:3002',
+      'http://localhost:3000',
+      'http://localhost:3003',
+      'http://localhost:3005',
+      'http://prd-iiss1:84',
+      'http://prd-iiss1:85',
+      'http://prd-iiss1.foa.dk:84',
+      'http://prd-iiss1.foa.dk:85',
+      'http://prd-iiss1:3003',
+      'http://prd-iiss1:3005',
+      'http://prd-iiss1.foa.dk:3003',
+      'http://prd-iiss1.foa.dk:3005',
+      'http://localhost'
+    ];
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost') || origin.startsWith('http://prd-iiss1')) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
     }
+  },
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204
 };
 
-console.log('Database config:', {
-    ...config,
-    password: '***' // Hide password in logs
+app.use(cors(corsOptions));
+app.use(express.json());
+
+// Handle OPTIONS preflight requests
+app.options('*', cors(corsOptions));
+
+// Add CORS debugging middleware
+app.use((req, res, next) => {
+  console.log(`Request from origin: ${req.headers.origin} to ${req.method} ${req.url}`);
+  next();
 });
 
-async function connectToDatabase() {
-    try {
-        await sql.connect(config);
-        console.log('Connected to the database');
-    } catch (err) {
-        console.error('Error connecting to the database:', err);
-        throw err; // Re-throw to prevent server from starting if DB connection fails
-    }
-}
+// Database connection
+let pool;
+const connectToDatabase = async () => {
+  try {
+    console.log('Connecting to database...');
+    pool = await sql.connect(dbConfig);
+    console.log('Connected to database');
+  } catch (err) {
+    console.error('Database connection failed:', err);
+    throw err;
+  }
+};
 
-// Helper function to parse and format date for SQL
-function formatDateForSQL(dateString) {
-    try {
-        console.log('Formatting date input:', dateString);
-       
-        // Handle DD.MM.YYYY format (European format)
-        if (typeof dateString === 'string' && dateString.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
-            // Example: input "04.11.2024" should become "2024-11-04"
-            const parts = dateString.split('.');
-            const day = parts[0];    // "04"
-            const month = parts[1];  // "11"
-            const year = parts[2];   // "2024"
-            
-            // For European format DD.MM.YYYY to SQL YYYY-MM-DD
-            const formatted = `${year}-${month}-${day}`;
-            
-            console.log('Input date:', dateString, '(DD.MM.YYYY)');
-            console.log('Parsed parts:', { day, month, year });
-            console.log('Final SQL date:', formatted, '(YYYY-MM-DD)');
-            
-            return formatted;
-        }
-
-        // If already in YYYY-MM-DD format, return as is
-        if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-            return dateString;
-        }
-
-        console.error('Could not parse date:', dateString);
-        return null;
-    } catch (err) {
-        console.error('Error formatting date:', err);
-        return null;
-    }
-}
-
-// Helper function to get section filter condition
-function getSectionFilterCondition(section) {
-    const sectionPatterns = {
-        viHarAftalt: '%Vi har aftalt%',
-        viHarIDagTaltOm: '%Vi har i dag talt om%',
-        dinJobsogningIndtilNu: '%Din jobsøgning indtil nu%'
+// Helper function to parse a referat into sections
+const parseReferat = (referat) => {
+  if (!referat) {
+    return {
+      viHarAftalt: [],
+      viHarIDagTaltOm: [],
+      dinJobsogningIndtilNu: [],
+      andet: []
     };
+  }
 
-    return sectionPatterns[section] || null;
-}
+  const sections = {
+    viHarAftalt: [],
+    viHarIDagTaltOm: [],
+    dinJobsogningIndtilNu: [],
+    andet: []
+  };
 
-// Helper function to build date filter condition
-function buildDateFilterCondition(date, type = 'exact', field = 'sr.reg_tid') {
-    // If no date is provided, return null (no filter)
-    if (!date) {
-        console.log('No date provided for filter condition');
+  const lines = referat.split('\n');
+  let currentSection = 'andet';
+  let currentText = '';
+
+  // Process each line and categorize into appropriate sections
+  for (const line of lines) {
+    if (line.includes('Vi har aftalt')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarAftalt';
+      currentText = '';
+    } else if (line.includes('Vi har i dag talt om')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'viHarIDagTaltOm';
+      currentText = '';
+    } else if (line.includes('Din jobsøgning indtil nu')) {
+      if (currentText.trim()) {
+        sections[currentSection].push(currentText.trim());
+      }
+      currentSection = 'dinJobsogningIndtilNu';
+      currentText = '';
+    } else if (line.trim()) {
+      // Handle bullet points and regular text differently
+      if (line.trim().startsWith('- ')) {
+        if (currentText.trim()) {
+          sections[currentSection].push(currentText.trim());
+          currentText = '';
+        }
+        sections[currentSection].push(line.trim());
+      } else {
+        currentText += (currentText ? ' ' : '') + line.trim();
+      }
+    }
+  }
+
+  // Add any remaining text
+  if (currentText.trim()) {
+    sections[currentSection].push(currentText.trim());
+  }
+
+  return sections;
+};
+
+// Helper function to count changes in a section using diffWords
+const countSectionChanges = (aiText, humanText, sectionName) => {
+  if (!aiText || !humanText) return 0;
+  
+  const aiParsed = parseReferat(aiText);
+  const humanParsed = parseReferat(humanText);
+  
+  // Join all lines with newlines to preserve structure
+  const aiSectionText = aiParsed[sectionName].join('\n');
+  const humanSectionText = humanParsed[sectionName].join('\n');
+  
+  // If section is empty in both texts, no changes
+  if (!aiSectionText.trim() && !humanSectionText.trim()) return 0;
+  
+  // Use diffWords to calculate changes
+  const diff = diffWords(aiSectionText, humanSectionText);
+  const changes = diff.filter(part => part.added || part.removed);
+  
+  console.log('Section changes:', {
+    sectionName,
+    changes: changes.map(c => ({
+      value: c.value,
+      type: c.added ? 'added' : 'removed'
+    }))
+  });
+  
+  return changes.length;
+};
+
+// KPI stats endpoint
+app.get('/api/kpi-stats', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching KPI stats...');
+    
+    // Parse date parameters with proper format conversion
+    const { startDate, endDate, type } = req.query;
+    
+    // SQL query parameters
+    let sqlParams = [];
+    let dateFilter = '';
+    let typeFilter = '';
+    
+    // Process date filters
+    if (startDate || endDate) {
+      // Function to convert DD.MM.YYYY to YYYY-MM-DD format
+      const formatDateForSQL = (dateStr) => {
+        if (!dateStr) return null;
+        
+        // If date is already in DD.MM.YYYY format, convert it
+        if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+          const [day, month, year] = dateStr.split('.');
+          return `${year}-${month}-${day}`;
+        }
+        
+        // If date is in YYYY-MM-DD format, use as is
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr;
+        }
+        
+        // Otherwise, try to parse the date
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+        
         return null;
+      };
+      
+      // Process date range (startDate and endDate)
+      const formattedStartDate = formatDateForSQL(startDate);
+      const formattedEndDate = formatDateForSQL(endDate);
+      
+      if (formattedStartDate && formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
+      } else if (formattedStartDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        console.log('Filtering by start date:', formattedStartDate);
+      } else if (formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by end date:', formattedEndDate);
+      }
     }
-
-    console.log('Building date filter condition - Input:', { date, type, field });
-    const formattedDate = formatDateForSQL(date);
-    if (!formattedDate) return null;
-
-    // Add debug logging
-    console.log(`Building date filter condition - Date: ${date}, Type: ${type}, Formatted: ${formattedDate}, Field: ${field}`);
-
-    let condition;
-    switch (type) {
-        case 'start':
-            condition = `cast(${field} as date) >= '${formattedDate}'`;
-            break;
-        case 'end':
-            condition = `cast(${field} as date) <= '${formattedDate}'`;
-            break;
-        case 'exact':
-        default:
-            condition = `cast(${field} as date) = '${formattedDate}'`;
-            break;
+    
+    // Add type filter if present
+    if (type) {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
     }
-
-    console.log('Generated SQL condition:', condition);
-    return condition;
-}
-
-// Endpoint to get data from samtale_transcription_statisics (tidligere samind_referat)
-app.get('/api/samind_referat', async (req, res) => {
-    try {
-        const { startDate, endDate, type } = req.query;
-        console.log('Raw request query parameters:', req.query);
-        console.log('Fetching samtale data...', { startDate, endDate, type });
-        const whereConditions = [];
-        
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'reg_tid');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'reg_tid');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (type && type !== 'all') {
-            whereConditions.push(`samtyp_type = '${type}'`);
-        }
-
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
-
-        // Log query parameters
-        console.log('Query parameters:', {
-            startDate: startDate ? formatDateForSQL(startDate) : 'null',
-            endDate: endDate ? formatDateForSQL(endDate) : 'null',
-            whereClause: whereClause || 'none'
-        });
-
-        const query = `
-            SELECT 
-                referat,
-                ai_referat,
-                feedback,
-                samtyp_type,
-                regenerated,
-                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
-                DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
-                reg_init,
-                reg_tid,
-                reg_vers_nr
-            FROM samtale_transcription_statisics WITH (NOLOCK)
-            ${whereClause}
-            ORDER BY reg_tid DESC`;
-
-        console.log('Executing query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records from samtale_transcription_statisics`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching data:', err);
-        res.status(500).json({ error: 'An error occurred while fetching data' });
-    }
-});
-
-// Endpoint to get AI referat data (tidligere samind_ai_referat)
-app.get('/api/samind_ai_referat', async (req, res) => {
-    try {
-        const { startDate, endDate, type } = req.query;
-        console.log('Raw request query parameters:', req.query);
-        console.log('Fetching AI referat data...', { startDate, endDate, type });
-        const whereConditions = [];
-        
-        if (startDate) {
-            const dateCondition = buildDateFilterCondition(startDate, 'start', 'ai_referat_recieved_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (endDate) {
-            const dateCondition = buildDateFilterCondition(endDate, 'end', 'ai_referat_recieved_at');
-            if (dateCondition) {
-                whereConditions.push(dateCondition);
-            }
-        }
-        if (type && type !== 'all') {
-            whereConditions.push(`samtyp_type = '${type}'`);
-        }
-
-        const whereClause = whereConditions.length > 0 
-            ? `WHERE ${whereConditions.join(' AND ')}` 
-            : '';
-
-        const query = `
-            SELECT 
-                ai_referat,
-                samtyp_type,
-                feedback,
-                regenerated,
-                DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) as tid_fra_transskription_til_ai_referat,
-                DATEDIFF(MINUTE, ai_referat_recieved_at, referat_godkendt_at) as tid_til_godkendelse,
-                reg_init,
-                reg_tid,
-                reg_vers_nr
-            FROM samtale_transcription_statisics WITH (NOLOCK)
-            ${whereClause}
-            ORDER BY ai_referat_recieved_at DESC`;
-
-        console.log('Executing query:', query);
-        const request = new sql.Request();
-        const result = await request.query(query);
-        console.log(`Fetched ${result.recordset.length} records`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching AI referat data:', err);
-        res.status(500).json({ error: 'An error occurred while fetching data' });
-    }
-});
-
-// Endpoint to get samtaletyper
-app.get('/api/samtaletyper', async (req, res) => {
-    try {
-        console.log('Fetching samtaletyper...');
-        const result = await sql.query`
-            SELECT DISTINCT 
-                samtyp_type
-            FROM samtale_transcription_statisics WITH (NOLOCK)
-            ORDER BY samtyp_type
-        `;
-        console.log(`Fetched ${result.recordset.length} distinct conversation types`);
-        res.json(result.recordset);
-    } catch (err) {
-        console.error('Error fetching conversation types:', err);
-        res.status(500).json({ error: 'An error occurred while fetching conversation types' });
-    }
-});
-
-// Catch-all handler
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'build', 'index.html'));
-});
-
-// Use PORT from environment variable, defaulting to 3002
-const PORT = process.env.PORT || 3002;
-
-connectToDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
-        console.log(`Frontend should be running on port 83`);
+    
+    // Build the KPI stats query
+    const query = `
+      WITH TimeStats AS (
+        SELECT
+          ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as thumbs_up,        
+          ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as thumbs_down,
+          ISNULL(SUM(CASE WHEN feedback IS NULL THEN 1 ELSE 0 END), 0) as no_feedback,
+          COUNT(*) as total_conversations,
+          ISNULL(AVG(CASE
+            WHEN transcription_recieved_at IS NOT NULL AND ai_referat_recieved_at IS NOT NULL
+            AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) > 0 
+            AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) < 1000
+            THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) AS FLOAT)
+            ELSE NULL
+          END), 0) as avg_time_to_ai_report,
+          ISNULL(AVG(CASE
+            WHEN transcription_recieved_at IS NOT NULL AND referat_godkendt_at IS NOT NULL
+            AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) > 0    
+            AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) < 1000 
+            THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
+            ELSE NULL
+          END), 0) as avg_time_to_approval,
+          (
+            SELECT TOP 1 samtyp_type
+            FROM ai_statistik
+            WHERE referat_godkendt_at IS NOT NULL ${dateFilter} ${typeFilter}
+            GROUP BY samtyp_type
+            ORDER BY COUNT(*) DESC
+          ) as most_frequent_type
+        FROM ai_statistik WITH (NOLOCK)
+        WHERE 1=1 ${dateFilter} ${typeFilter}
+      )
+      SELECT
+        thumbs_up as positiveFeedback,
+        thumbs_down as negativeFeedback,
+        no_feedback as noFeedback,
+        total_conversations as totalCount,
+        avg_time_to_ai_report as avgTimeToAiReport,
+        avg_time_to_approval as avgTimeToApproval,
+        ISNULL(most_frequent_type, 'N/A') as mostFrequentType
+      FROM TimeStats
+    `;
+    
+    console.log('Executing KPI stats query:', query);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query
+    const request = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      request.input(param.name, param.type, param.value);
     });
-}).catch(err => {
-    console.error('Failed to start server due to database connection error:', err);
-    process.exit(1);
+    
+    const result = await request.query(query);
+    console.log('KPI stats result:', result.recordset[0]);
+    
+    // Send the results
+    res.json(result.recordset[0] || {
+      positiveFeedback: 0,
+      negativeFeedback: 0,
+      noFeedback: 0,
+      totalCount: 0,
+      avgTimeToAiReport: 0,
+      avgTimeToApproval: 0,
+      mostFrequentType: "N/A"
+    });
+  } catch (err) {
+    console.error('Error fetching KPI stats:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Timeline stats endpoint
+app.get('/api/timeline-stats', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching timeline stats...');
+    
+    // Parse query parameters
+    const { startDate, endDate, interval, type } = req.query;
+    console.log('Timeline stats request params:', { startDate, endDate, interval, type });
+    
+    // Determine the date format and group by clause based on interval
+    let dateFormat = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
+    let groupByClause = "CONVERT(VARCHAR(10), referat_godkendt_at, 120)";
+    
+    if (interval === 'days') {
+      // For days, use the exact date without any grouping
+      dateFormat = "CAST(referat_godkendt_at AS DATE)";
+      groupByClause = "CAST(referat_godkendt_at AS DATE)";
+    } else if (interval === 'weeks') {
+      dateFormat = "DATEADD(DAY, -(DATEPART(WEEKDAY, referat_godkendt_at) + 5) % 7, CAST(referat_godkendt_at AS DATE))";
+      groupByClause = "DATEADD(DAY, -(DATEPART(WEEKDAY, referat_godkendt_at) + 5) % 7, CAST(referat_godkendt_at AS DATE))";
+    } else if (interval === 'months') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), MONTH(referat_godkendt_at), 1)";
+    } else if (interval === 'quarters') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), ((DATEPART(QUARTER, referat_godkendt_at) - 1) * 3) + 1, 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), ((DATEPART(QUARTER, referat_godkendt_at) - 1) * 3) + 1, 1)";
+    } else if (interval === 'years') {
+      dateFormat = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
+      groupByClause = "DATEFROMPARTS(YEAR(referat_godkendt_at), 1, 1)";
+    }
+    
+    console.log('Determined date format:', dateFormat);
+    console.log('Determined group by clause:', groupByClause);
+    
+    // SQL query parameters
+    let sqlParams = [];
+    let dateFilter = '';
+    let typeFilter = '';
+    
+    // Process date filters
+    if (startDate || endDate) {
+      // Function to convert DD.MM.YYYY to YYYY-MM-DD format
+      const formatDateForSQL = (dateStr) => {
+        if (!dateStr) return null;
+        
+        // If date is already in DD.MM.YYYY format, convert it
+        if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+          const [day, month, year] = dateStr.split('.');
+          return `${year}-${month}-${day}`;
+        }
+        
+        // If date is in YYYY-MM-DD format, use as is
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr;
+        }
+        
+        // Otherwise, try to parse the date
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+        
+        return null;
+      };
+      
+      // Process date range (startDate and endDate)
+      const formattedStartDate = formatDateForSQL(startDate);
+      const formattedEndDate = formatDateForSQL(endDate);
+      
+      if (formattedStartDate && formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
+      } else if (formattedStartDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        console.log('Filtering by start date:', formattedStartDate);
+      } else if (formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by end date:', formattedEndDate);
+      }
+    }
+    
+    // Add type filter if present
+    if (type) {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
+    }
+    
+    // First, get all the records we need to process
+    const recordsQuery = `
+      SELECT
+        lbnr,
+        ${dateFormat} as date,
+        referat,
+        AI_Referat as aiReferat,
+        samtyp_type
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE 1=1 ${dateFilter} ${typeFilter}
+    `;
+    
+    console.log('Executing records query:', recordsQuery);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query to get records
+    const recordsRequest = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      recordsRequest.input(param.name, param.type, param.value);
+    });
+    
+    const recordsResult = await recordsRequest.query(recordsQuery);
+    console.log(`Found ${recordsResult.recordset.length} records for processing`);
+    
+    // Process records to calculate section changes
+    const processedRecords = recordsResult.recordset.map(record => {
+      // Skip records without both AI referat and approved referat
+      if (!record.aiReferat || !record.referat) {
+        return {
+          ...record,
+          viHarAftaltChanges: 0,
+          viHarIDagTaltOmChanges: 0,
+          dinJobsogningIndtilNuChanges: 0,
+          uaendredeSektioner: 0
+        };
+      }
+      
+      // Calculate changes for each section using diffWords
+      const viHarAftaltChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarAftalt');
+      const viHarIDagTaltOmChanges = countSectionChanges(record.aiReferat, record.referat, 'viHarIDagTaltOm');
+      const dinJobsogningIndtilNuChanges = countSectionChanges(record.aiReferat, record.referat, 'dinJobsogningIndtilNu');
+      
+      return {
+        ...record,
+        viHarAftaltChanges,
+        viHarIDagTaltOmChanges,
+        dinJobsogningIndtilNuChanges,
+        uaendredeSektioner: (viHarAftaltChanges === 0 && viHarIDagTaltOmChanges === 0 && dinJobsogningIndtilNuChanges === 0) ? 1 : 0
+      };
+    });
+    
+    console.log('Processed records:', processedRecords);
+    
+    // Now get the basic stats from the database
+    const statsQuery = `
+      WITH DailyStats AS (
+        SELECT
+          ${dateFormat} as date,
+          COUNT(*) as total_count,
+          ISNULL(SUM(CASE WHEN feedback = '1' THEN 1 ELSE 0 END), 0) as positive_feedback,
+          ISNULL(SUM(CASE WHEN feedback = '-1' THEN 1 ELSE 0 END), 0) as negative_feedback,
+          ISNULL(AVG(CASE
+            WHEN transcription_recieved_at IS NOT NULL AND ai_referat_recieved_at IS NOT NULL
+            AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) > 0 
+            AND DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) < 1000
+            THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, ai_referat_recieved_at) AS FLOAT)
+            ELSE NULL
+          END), 0) as avg_time_to_ai_report,
+          ISNULL(AVG(CASE
+            WHEN transcription_recieved_at IS NOT NULL AND referat_godkendt_at IS NOT NULL
+            AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) > 0    
+            AND DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) < 1000 
+            THEN CAST(DATEDIFF(MINUTE, transcription_recieved_at, referat_godkendt_at) AS FLOAT)
+            ELSE NULL
+          END), 0) as avg_time_to_approval
+        FROM ai_statistik WITH (NOLOCK)
+        WHERE 1=1 ${dateFilter} ${typeFilter}
+        GROUP BY ${groupByClause}
+      )
+      SELECT
+        CONVERT(VARCHAR(10), date, 120) as date,
+        total_count as totalCount,
+        positive_feedback as positiveFeedback,
+        negative_feedback as negativeFeedback,
+        avg_time_to_ai_report as avgTimeToAiReport,
+        avg_time_to_approval as avgTimeToApproval
+      FROM DailyStats
+      ORDER BY date
+    `;
+    
+    console.log('Executing stats query:', statsQuery);
+    
+    // Execute the query to get stats
+    const statsRequest = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      statsRequest.input(param.name, param.type, param.value);
+    });
+    
+    const statsResult = await statsRequest.query(statsQuery);
+    console.log(`Found ${statsResult.recordset.length} stats records`);
+    
+    // Combine the stats with the processed section changes
+    const combinedResults = statsResult.recordset.map(stat => {
+      // Find all records for this date, accounting for different interval groupings
+      const dateRecords = processedRecords.filter(record => {
+        // For days, we need exact date matching
+        if (interval === 'days') {
+          const recordDate = new Date(record.date).toISOString().split('T')[0];
+          const statDate = new Date(stat.date).toISOString().split('T')[0];
+          return recordDate === statDate;
+        } 
+        // For weeks, we need to match the week
+        else if (interval === 'weeks') {
+          const recordDate = new Date(record.date);
+          const statDate = new Date(stat.date);
+          
+          // Get the week start date (Monday) for both dates
+          const recordWeekStart = new Date(recordDate);
+          recordWeekStart.setDate(recordDate.getDate() - recordDate.getDay() + (recordDate.getDay() === 0 ? -6 : 1));
+          recordWeekStart.setHours(0, 0, 0, 0);
+          
+          const statWeekStart = new Date(statDate);
+          statWeekStart.setDate(statDate.getDate() - statDate.getDay() + (statDate.getDay() === 0 ? -6 : 1));
+          statWeekStart.setHours(0, 0, 0, 0);
+          
+          return recordWeekStart.getTime() === statWeekStart.getTime();
+        }
+        // For months, quarters, and years, match by the stat date
+        else {
+          const recordDate = new Date(record.date);
+          const statDate = new Date(stat.date);
+          
+          if (interval === 'months') {
+            return recordDate.getFullYear() === statDate.getFullYear() && 
+                   recordDate.getMonth() === statDate.getMonth();
+          } else if (interval === 'quarters') {
+            const recordQuarter = Math.floor(recordDate.getMonth() / 3);
+            const statQuarter = Math.floor(statDate.getMonth() / 3);
+            return recordDate.getFullYear() === statDate.getFullYear() && 
+                   recordQuarter === statQuarter;
+          } else if (interval === 'years') {
+            return recordDate.getFullYear() === statDate.getFullYear();
+          }
+          
+          // Default fallback to exact date matching
+          const recordDateStr = new Date(record.date).toISOString().split('T')[0];
+          const statDateStr = new Date(stat.date).toISOString().split('T')[0];
+          return recordDateStr === statDateStr;
+        }
+      });
+      
+      // Calculate section changes for this date
+      const viHarAftalt = dateRecords.reduce((sum, record) => sum + record.viHarAftaltChanges, 0);
+      const viHarIDagTaltOm = dateRecords.reduce((sum, record) => sum + record.viHarIDagTaltOmChanges, 0);
+      const dinJobsogningIndtilNu = dateRecords.reduce((sum, record) => sum + record.dinJobsogningIndtilNuChanges, 0);
+      const uaendredeSektioner = dateRecords.reduce((sum, record) => sum + record.uaendredeSektioner, 0);
+      
+      // Extract conversation types from the records for this date
+      const conversationTypes = {};
+      dateRecords.forEach(record => {
+        if (record.samtyp_type) {
+          conversationTypes[record.samtyp_type] = (conversationTypes[record.samtyp_type] || 0) + 1;
+        }
+      });
+      
+      console.log(`Date: ${stat.date}, Records: ${dateRecords.length}, Conversation Types:`, conversationTypes);
+      
+      return {
+        ...stat,
+        viHarAftalt,
+        viHarIDagTaltOm,
+        dinJobsogningIndtilNu,
+        uaendredeSektioner,
+        conversationTypes: Object.keys(conversationTypes),
+        conversationTypeCounts: conversationTypes,
+        count: dateRecords.length
+      };
+    });
+    
+    console.log(`Found ${combinedResults.length} timeline records`);
+    console.log('Sample of combined results:', combinedResults.slice(0, 2));
+    
+    // Send the results
+    res.json(combinedResults);
+  } catch (err) {
+    console.error('Error fetching timeline stats:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Samtaletyper endpoint
+app.get('/api/samtaletyper', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching samtaletyper...');
+    
+    // Query to get distinct conversation types
+    const query = `
+      SELECT DISTINCT
+        samtyp_type,
+        samtyp_type as ledetekst
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE samtyp_type IS NOT NULL AND samtyp_type <> ''
+      ORDER BY samtyp_type
+    `;
+    
+    console.log('Executing samtaletyper query:', query);
+    
+    // Execute the query
+    const result = await pool.request().query(query);
+    console.log(`Found ${result.recordset.length} samtaletyper`);
+    
+    // Send the results
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching samtaletyper:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Samtaletyper counts endpoint
+app.get('/api/samtaletyper/counts', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching samtaletyper counts...');
+    
+    // Parse query parameters
+    const { startDate, endDate, type } = req.query;
+    console.log('Samtaletyper counts request params:', { startDate, endDate, type });
+    
+    // SQL query parameters
+    let sqlParams = [];
+    let dateFilter = '';
+    let typeFilter = '';
+    
+    // Process date filters
+    if (startDate || endDate) {
+      // Function to convert DD.MM.YYYY to YYYY-MM-DD format
+      const formatDateForSQL = (dateStr) => {
+        if (!dateStr) return null;
+        
+        // If date is already in DD.MM.YYYY format, convert it
+        if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+          const [day, month, year] = dateStr.split('.');
+          return `${year}-${month}-${day}`;
+        }
+        
+        // If date is in YYYY-MM-DD format, use as is
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr;
+        }
+        
+        // Otherwise, try to parse the date
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+        
+        return null;
+      };
+      
+      // Process date range (startDate and endDate)
+      const formattedStartDate = formatDateForSQL(startDate);
+      const formattedEndDate = formatDateForSQL(endDate);
+      
+      if (formattedStartDate && formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
+      } else if (formattedStartDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
+        sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+        console.log('Filtering by start date:', formattedStartDate);
+      } else if (formattedEndDate) {
+        dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
+        sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+        console.log('Filtering by end date:', formattedEndDate);
+      }
+    }
+    
+    // Add type filter if present
+    if (type && type !== 'all') {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
+    }
+    
+    // Query to get conversation type counts
+    const query = `
+      SELECT
+        samtyp_type,
+        COUNT(*) as count
+      FROM ai_statistik WITH (NOLOCK)
+      WHERE samtyp_type IS NOT NULL AND samtyp_type <> '' ${dateFilter} ${typeFilter}
+      GROUP BY samtyp_type
+      ORDER BY COUNT(*) DESC
+    `;
+    
+    console.log('Executing samtaletyper counts query:', query);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query
+    const request = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      request.input(param.name, param.type, param.value);
+    });
+    
+    const result = await request.query(query);
+    console.log(`Found ${result.recordset.length} samtaletyper counts:`, result.recordset);
+    
+    // Send the results
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching samtaletyper counts:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// API endpoint for fetching conversation summaries
+app.get('/api/samind_referat', async (req, res) => {
+  try {
+    if (!pool) await connectToDatabase();
+    console.log('Fetching samind referat...');
+
+    // Parse date parameters with proper format conversion
+    const { startDate, endDate, date, type } = req.query;
+    
+    // SQL query parameters
+    let sqlParams = [];
+    let dateFilter = '';
+    
+    // Process date filters
+    if (startDate || endDate || date) {
+      // Function to convert DD.MM.YYYY to YYYY-MM-DD format
+      const formatDateForSQL = (dateStr) => {
+        if (!dateStr) return null;
+        
+        // If date is already in DD.MM.YYYY format, convert it
+        if (dateStr.match(/^\d{2}\.\d{2}\.\d{4}$/)) {
+          const [day, month, year] = dateStr.split('.');
+          return `${year}-${month}-${day}`;
+        }
+        
+        // If date is in YYYY-MM-DD format, use as is
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          return dateStr;
+        }
+        
+        // Otherwise, try to parse the date
+        try {
+          const date = new Date(dateStr);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('Error parsing date:', err);
+        }
+        
+        return null;
+      };
+      
+      // If we have a specific date, use that for filtering
+      if (date) {
+        const formattedDate = formatDateForSQL(date);
+        if (formattedDate) {
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) = @date";
+          sqlParams.push({ name: 'date', type: sql.Date, value: formattedDate });
+          console.log('Filtering by specific date:', formattedDate);
+        }
+      } else {
+        // Otherwise use date range (startDate and endDate)
+        const formattedStartDate = formatDateForSQL(startDate);
+        const formattedEndDate = formatDateForSQL(endDate);
+        
+        if (formattedStartDate && formattedEndDate) {
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) BETWEEN @startDate AND @endDate";
+          sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+          sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+          console.log('Filtering by date range:', formattedStartDate, 'to', formattedEndDate);
+        } else if (formattedStartDate) {
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) >= @startDate";
+          sqlParams.push({ name: 'startDate', type: sql.Date, value: formattedStartDate });
+          console.log('Filtering by start date:', formattedStartDate);
+        } else if (formattedEndDate) {
+          dateFilter = "AND CAST(referat_godkendt_at AS DATE) <= @endDate";
+          sqlParams.push({ name: 'endDate', type: sql.Date, value: formattedEndDate });
+          console.log('Filtering by end date:', formattedEndDate);
+        }
+      }
+    }
+    
+    // Add type filter if present
+    let typeFilter = '';
+    if (type) {
+      typeFilter = "AND samtyp_type = @type";
+      sqlParams.push({ name: 'type', type: sql.VarChar, value: type });
+      console.log('Filtering by type:', type);
+    }
+    
+    // Build the WHERE clause
+    let whereClause = "WHERE 1=1"; // Always true condition to start the WHERE clause
+    if (dateFilter) {
+      whereClause += ` ${dateFilter}`; // Note: dateFilter already includes AND
+    }
+    if (typeFilter) {
+      whereClause += ` ${typeFilter}`; // Note: typeFilter already includes AND
+    }
+    
+    // Build the final query
+    const query = `
+      SELECT TOP 100
+        lbnr,
+        referat,
+        AI_Referat as aiReferat,
+        feedback,
+        referat_godkendt_at,
+        transcription_recieved_at,
+        AI_Referat_Recieved_At as ai_referat_recieved_at,
+        referat_started_at,
+        samtyp_type,
+        feedback as feedback_beskrivelse,
+        regenerated,
+        DATEDIFF(MINUTE, referat_started_at, referat_godkendt_at) as tid_til_godkendelse,
+        DATEDIFF(MINUTE, transcription_recieved_at, AI_Referat_Recieved_At) as tid_til_ai_referat
+      FROM ai_statistik WITH (NOLOCK)
+      ${whereClause}
+      ORDER BY referat_godkendt_at DESC
+    `;
+    
+    console.log('Executing query:', query);
+    console.log('With parameters:', sqlParams);
+    
+    // Execute the query
+    const request = pool.request();
+    
+    // Add parameters to the request
+    sqlParams.forEach(param => {
+      request.input(param.name, param.type, param.value);
+    });
+    
+    const result = await request.query(query);
+    console.log(`Found ${result.recordset.length} records`);
+    
+    // Send the results
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error fetching samind referat:', err);
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// Serve static files from the build folder for IIS deployment
+// This must be placed after all API routes
+const buildPath = path.join(__dirname, 'build');
+app.use(express.static(buildPath));
+console.log(`Serving static files from: ${buildPath}`);
+
+// Handle client-side routing for IIS deployment
+// This must be placed after all API routes and static file serving
+app.get('*', (req, res) => {
+  res.sendFile(path.join(buildPath, 'index.html'));
+});
+
+// Start the server
+const PORT = process.env.PORT || 3005;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`Frontend should be running on port ${process.env.DEV_FRONTEND_PORT_ALT || 83}`);
+});
+
+// Connect to database on startup
+connectToDatabase().catch(err => {
+  console.error('Failed to connect to database on startup:', err);
+  process.exit(1);
 });

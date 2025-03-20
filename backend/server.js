@@ -6,14 +6,24 @@ const path = require('path');
 require('dotenv').config();
 
 // Database config
+// const dbConfig = {
+//   user: process.env.DB_USER,
+//   password: process.env.DB_PASSWORD,
+//   server: process.env.DB_SERVER,
+//   database: process.env.DB_NAME,
+//   options: {
+//     encrypt: true,
+//     trustServerCertificate: true
+//   }
+// };
 const dbConfig = {
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  server: process.env.DB_SERVER,
-  database: process.env.DB_NAME,
+  user: 'fiksliste',
+  password: 'Fiksliste2',
+  server: 'prd-bi2',
+  database: 'Fiksanalysedb',
   options: {
-    encrypt: true,
-    trustServerCertificate: true
+      encrypt: true,
+      trustServerCertificate: true
   }
 };
 
@@ -21,12 +31,38 @@ const app = express();
 
 // CORS setup
 const corsOptions = {
-  origin: [
-    'http://localhost:83',
-    'http://localhost:3002',
-    'http://localhost:3000',
-    'http://localhost:3003'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:84',
+      'http://localhost:85',
+      'http://localhost:83',
+      'http://localhost:3002',
+      'http://localhost:3000',
+      'http://localhost:3003',
+      'http://localhost:3005',
+      'http://prd-iiss1:84',
+      'http://prd-iiss1:85',
+      'http://prd-iiss1.foa.dk:84',
+      'http://prd-iiss1.foa.dk:85',
+      'http://prd-iiss1:3003',
+      'http://prd-iiss1:3005',
+      'http://prd-iiss1.foa.dk:3003',
+      'http://prd-iiss1.foa.dk:3005',
+      'http://localhost'
+    ];
+    
+    // Check if the origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost') || origin.startsWith('http://prd-iiss1')) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked for origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   optionsSuccessStatus: 204
@@ -34,6 +70,15 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Handle OPTIONS preflight requests
+app.options('*', cors(corsOptions));
+
+// Add CORS debugging middleware
+app.use((req, res, next) => {
+  console.log(`Request from origin: ${req.headers.origin} to ${req.method} ${req.url}`);
+  next();
+});
 
 // Database connection
 let pool;
@@ -857,7 +902,7 @@ app.get('*', (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3005;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Frontend should be running on port ${process.env.DEV_FRONTEND_PORT_ALT || 83}`);
